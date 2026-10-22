@@ -39,14 +39,14 @@ hdc shell bm get --udid   # 输出就是设备 UDID,复制保存
 
 ## 三、在 AGC 申请证书和 Profile
 
-登录 [AppGallery Connect](https://developer.huawei.com/consumer/cn/agconnect/),进入「我的项目」→ 你的项目 → HarmonyOS 应用:
+登录 [AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html),进入「**证书、APP ID 和 Profile**」模块(注意:旧文档里的「用户与访问 → 证书管理」已不是当前入口):
 
-1. **创建应用**(如尚未创建):包名必须与仓库 `AppScope/app.json5` 的 `bundleName` 一致。
-2. **申请调试证书**:上传 `debug.csr`,下载得到 `xxx.cer`。
-3. **注册调试设备**:在设备管理中添加上一步得到的 UDID。
-4. **申请调试 Profile**:新建调试 Profile,勾选你的应用、调试证书和已注册设备,下载得到 `xxx.p7b`。
+1. **创建 APP ID**(如尚未创建):「APP ID」→ 新建,选择 HarmonyOS 应用,应用名「米柚」,包名必须与仓库 `AppScope/app.json5` 的 `bundleName` 一致(`com.miyou.app`,包名创建后不可修改)。
+2. **申请新增证书**:「证书」→ 新增证书,类型选**调试证书**,上传 `debug.csr`,提交后下载 `xxx.cer`。注意:AGC 调试证书每个账号最多 2 个。
+3. **注册调试设备**:「设备」→ 添加,类型选真机,填入上一步得到的 UDID,名称随意(如 Mate80ProMax)。
+4. **申请新增调试 Profile**:「Profile」→ 新建,类型选**调试Profile**,勾选应用「米柚 com.miyou.app」、刚申请的调试证书、已注册的设备,提交后下载 `xxx.p7b`。
 
-具体入口名称以 AGC 当前页面为准,流程就是「证书 → 设备 → Profile」三步。
+流程就是「APP ID → 证书 → 设备 → Profile」四步。具体页面名称以 AGC 当前界面为准。
 
 ## 四、获取 Command Line Tools 直链(CI 用)
 
