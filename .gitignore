@@ -1,0 +1,15 @@
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+**/.cxx
+/.appanalyzer
+*.p12
+*.cer
+*.csr
+*.p7b
+.sign/
+dist/
+.DS_Store

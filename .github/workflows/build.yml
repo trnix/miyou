@@ -1,0 +1,78 @@
+name: Build & Release HAP
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 26.0.0 及以上版本的 Command Line Tools 官方推荐 JDK 21
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev
+
+      - name: Download HarmonyOS Command Line Tools
+        env:
+          CLI_TOOLS_URL: ${{ vars.CLI_TOOLS_URL }}
+        run: |
+          if [ -z "$CLI_TOOLS_URL" ]; then
+            echo "::error::缺少 CLI_TOOLS_URL。请在仓库 Settings → Secrets and variables → Actions → Variables 添加(值为华为下载中心 Command Line Tools Linux x86-64 版直链,获取方法见 docs/signing.md)。"
+            exit 1
+          fi
+          curl -fL --retry 3 "$CLI_TOOLS_URL" -o /tmp/cli-tools.zip
+          unzip -q /tmp/cli-tools.zip -d "$HOME/ohos"
+          ls "$HOME/ohos"
+
+      - name: Build unsigned HAP
+        run: |
+          export PATH="$HOME/ohos/command-line-tools/bin:$HOME/ohos/command-line-tools/tool/node/bin:$PATH"
+          ohpm config set registry https://ohpm.openharmony.cn/ohpm/
+          (cd entry && ohpm install --all)
+          ohpm install --all
+          hvigorw clean --no-daemon
+          hvigorw assembleHap --mode module -p product=default -p buildMode=release --no-daemon
+
+      - name: Sign HAP
+        env:
+          SIGNING_P12: ${{ secrets.SIGNING_P12 }}
+          SIGNING_CERT: ${{ secrets.SIGNING_CERT }}
+          SIGNING_PROFILE: ${{ secrets.SIGNING_PROFILE }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          RELEASE_MODE: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: bash scripts/sign.sh
+
+      - name: Verify signed HAP (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test -f dist/app-signed.hap || { echo "::error::tag 发布构建必须产出已签名 HAP,请检查签名 Secrets"; exit 1; }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hap
+          path: dist/
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/app-signed.hap
