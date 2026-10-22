@@ -52,7 +52,7 @@ hdc shell bm get --udid   # 输出就是设备 UDID,复制保存
 
 1. 用华为账号登录 [华为开发者下载中心](https://developer.huawei.com/consumer/cn/download/)(下载中心需要登录才能下载)。
 2. 找到 **Command Line Tools**,选择 **Linux x86-64 版**,在下载按钮上右键「复制链接地址」(直链形如 `https://...dbankcdn.cn/...zip`)。
-3. 存到仓库 **Settings → Secrets and variables → Actions → Variables**,名称 `CLI_TOOLS_URL`。
+3. 存到仓库 **Settings → Secrets and variables → Actions**(Variables 或 Secrets 均可,工作流两边都认),名称 `CLI_TOOLS_URL`。
 
 注意:直链会随版本更新失效,构建报下载失败时回来换新链接。本地侧载用的 hdc 则下载 **Windows 版** Command Line Tools。
 

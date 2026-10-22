@@ -36,7 +36,7 @@
 2. **AGC 创建应用**:在 [AppGallery Connect](https://developer.huawei.com/consumer/cn/agconnect/) 「我的项目」中新建项目并添加 HarmonyOS 应用,**包名必须与本仓库 `AppScope/app.json5` 中的 `bundleName` 完全一致**(默认 `com.miyou.app`,可自行修改)。
 3. **申请签名材料**:按 [docs/signing.md](docs/signing.md) 生成密钥和 CSR,在 AGC 申请调试证书、注册手机 UDID、申请调试 Profile。
 4. **配置 GitHub**:在仓库 **Settings → Secrets and variables → Actions** 中添加:
-   - **Variables(1 个)**:`CLI_TOOLS_URL` = 华为下载中心「Command Line Tools」Linux x86-64 版直链(需登录后获取,方法见 [docs/signing.md](docs/signing.md))
+   - **`CLI_TOOLS_URL`** = 华为下载中心「Command Line Tools」Linux x86-64 版直链(需登录后获取,方法见 [docs/signing.md](docs/signing.md);Variables 或 Secrets 均可)
    - **Secrets(6 个)**:`SIGNING_P12`、`SIGNING_CERT`、`SIGNING_PROFILE`(三个文件各自 base64 后的文本)、`SIGNING_KEY_ALIAS`、`SIGNING_KEYSTORE_PASSWORD`、`SIGNING_KEY_PASSWORD`
 5. **触发构建**:
    - 推送到 `main` 分支 → 构建并在 Artifacts 中查看产物(未配置签名 Secrets 时会上传未签名包,仅用于验证编译)

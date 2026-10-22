@@ -30,10 +30,11 @@ jobs:
 
       - name: Download HarmonyOS Command Line Tools
         env:
-          CLI_TOOLS_URL: ${{ vars.CLI_TOOLS_URL }}
+          # Variables 或 Secrets 里配置均可,Variables 优先
+          CLI_TOOLS_URL: ${{ vars.CLI_TOOLS_URL || secrets.CLI_TOOLS_URL }}
         run: |
           if [ -z "$CLI_TOOLS_URL" ]; then
-            echo "::error::缺少 CLI_TOOLS_URL。请在仓库 Settings → Secrets and variables → Actions → Variables 添加(值为华为下载中心 Command Line Tools Linux x86-64 版直链,获取方法见 docs/signing.md)。"
+            echo "::error::缺少 CLI_TOOLS_URL。请在仓库 Settings → Secrets and variables → Actions 里添加(Variables 或 Secrets 均可,值为华为下载中心 Command Line Tools Linux x86-64 版直链,获取方法见 docs/signing.md)。"
             exit 1
           fi
           curl -fL --retry 3 "$CLI_TOOLS_URL" -o /tmp/cli-tools.zip
