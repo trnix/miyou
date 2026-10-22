@@ -37,12 +37,19 @@ struct PostDetail {
     this.error = '';
     try {
       const resp = await MiyousheApi.fetchPostFull(this.postId);
-      if (resp.retcode !== 0 || !resp.data || !resp.data.post || !resp.data.post.post) {
+      if (resp.retcode !== 0 || !resp.data) {
         const msg = resp.retcode !== 0 ? `接口返回 ${resp.retcode}: ${resp.message}` : '帖子数据为空';
         throw new Error(msg);
       }
       const d = resp.data;
-      const post = d.post.post;
+      const container = d.post;
+      if (!container) {
+        throw new Error('帖子数据为空');
+      }
+      const post = container.post;
+      if (!post) {
+        throw new Error('帖子数据为空');
+      }
       this.subject = post.subject;
       this.textContent = post.content ? Format.stripHtml(post.content) : '';
       this.images = post.images ? post.images : [];
@@ -55,7 +62,7 @@ struct PostDetail {
       this.replyNum = stat ? stat.reply_num : 0;
       this.createdAt = post.created_at ? Format.time(post.created_at) : '';
       // 视频帖:明确提示不支持,不静默丢弃
-      this.isVideo = post.view_type === 5 || (d.post.vod_list ? d.post.vod_list.length > 0 : false);
+      this.isVideo = post.view_type === 5 || (container.vod_list ? container.vod_list.length > 0 : false);
     } catch (e) {
       this.error = `加载失败:${e instanceof Error ? e.message : String(e)}`;
     } finally {
