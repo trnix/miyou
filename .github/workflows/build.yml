@@ -40,6 +40,18 @@ jobs:
           curl -fL --retry 3 "$CLI_TOOLS_URL" -o /tmp/cli-tools.zip
           unzip -q /tmp/cli-tools.zip -d "$HOME/ohos"
           ls "$HOME/ohos"
+          # 架构自检:防止下载了 ARM64/macOS 版工具包,到构建步骤才报 Exec format error
+          echo "Runner 架构: $(uname -m)"
+          NODE_BIN="$HOME/ohos/command-line-tools/tool/node/bin/node"
+          if [ ! -f "$NODE_BIN" ]; then
+            echo "::error::解压后未找到 tool/node/bin/node,请确认下载的是 Linux 版 Command Line Tools"
+            exit 1
+          fi
+          if ! "$NODE_BIN" -v >/dev/null 2>&1; then
+            echo "::error::工具包内的 Node 无法在 $(uname -m) 架构上运行,说明下载的版本不对。请到华为下载中心重新复制 Linux x86-64 版 Command Line Tools 的直链并更新 CLI_TOOLS_URL(注意不要选成 ARM64 或 macOS 版)。"
+            exit 1
+          fi
+          "$NODE_BIN" -v
 
       - name: Build unsigned HAP
         run: |
