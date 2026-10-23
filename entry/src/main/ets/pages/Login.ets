@@ -14,7 +14,7 @@ struct Login {
   private checkLogin(): void {
     if (this.done) { return; }
     try {
-      const cookie: string = webview.WebCookieManager.getInstance().fetchCookieSync('https://www.miyoushe.com');
+      const cookie: string = webview.WebCookieManager.fetchCookieSync('https://www.miyoushe.com');
       const hasToken: boolean = /(ltoken|login_ticket|stoken)=/.test(cookie);
       const hasUid: boolean = /(ltuid|stuid|account_id|login_uid)=\d+/.test(cookie);
       if (hasToken && hasUid) {
