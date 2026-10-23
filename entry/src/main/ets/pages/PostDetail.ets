@@ -148,7 +148,7 @@ struct PostDetail {
               }
               if (this.body) {
                 Text(this.body).fontSize(16).lineHeight(27).fontColor('#344054').width('100%')
-                  .copyOption(CopyOptions.Local)
+                  .copyOption(CopyOptions.LocalDevice)
               }
               ForEach(this.images, (image: ReaderImage, index: number) => {
                 Image(image.url).width('100%').aspectRatio(this.imageRatio(image)).objectFit(ImageFit.Contain)
