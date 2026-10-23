@@ -4,6 +4,26 @@ export interface PostImage {
   height: number;
   width: number;
 }
+export interface ForumInfo {
+  id: number;
+  name: string;
+  icon?: string;
+}
+export interface HomeTopic {
+  id: number;
+  name: string;
+  cover: string;
+  desc?: string;
+}
+export interface HomeTopics {
+  list?: HomeTopic[];
+  position?: number;
+}
+export interface PostStatus {
+  is_top?: boolean;
+  is_good?: boolean;
+  is_official?: boolean;
+}
 export interface Post {
   post_id: string;
   subject: string;
@@ -12,6 +32,7 @@ export interface Post {
   view_type?: number;
   created_at?: number;
   content?: string;
+  post_status?: PostStatus;
 }
 export interface User {
   uid: string;
@@ -30,21 +51,13 @@ export interface PostItem {
   post: Post;
   user: User;
   stat: Stat;
+  forum?: ForumInfo;
+  topics?: HomeTopic[];
   statsLoaded?: boolean;
 }
 export interface HomeCarousel {
   cover: string;
   path: string;
-}
-export interface HomeTopic {
-  id: number;
-  name: string;
-  cover: string;
-  desc?: string;
-}
-export interface HomeTopics {
-  list?: HomeTopic[];
-  position?: number;
 }
 export interface SelectionPost {
   post_id: string;
