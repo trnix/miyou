@@ -8,11 +8,13 @@ import { Format } from '../utils/Format';
 interface NewsData { list?: PostItem[]; }
 interface NewsResponse { retcode: number; message: string; data?: NewsData; }
 interface ToolItem { name: string; description: string; url: string; }
+interface GameChannel { name: string; gids: number; }
 
 @Entry
 @Component
 struct AppShell {
   @State tab: number = 0;
+  @State gameIndex: number = 0;
   @State posts: PostItem[] = [];
   @State banners: HomeCarousel[] = [];
   @State topics: HomeTopic[] = [];
@@ -30,6 +32,12 @@ struct AppShell {
   private newsGeneration: number = 0;
   private readonly labels: string[] = ['社区', '官方', '工具', '我的'];
   private readonly marks: string[] = ['◈', '▤', '◇', '◎'];
+  private readonly games: GameChannel[] = [
+    { name: '原神', gids: MiyousheApi.GIDS_GENSHIN },
+    { name: '星穹铁道', gids: MiyousheApi.GIDS_STAR_RAIL },
+    { name: '绝区零', gids: MiyousheApi.GIDS_ZZZ },
+    { name: '崩坏3', gids: MiyousheApi.GIDS_HONKAI3 }
+  ];
   private readonly material: uiMaterial.Material = new uiMaterial.ImmersiveMaterial({
     style: uiMaterial.ImmersiveStyle.THIN, interactive: true, lightEffect: { color: 0xFFFFFFFF }
   });
@@ -41,6 +49,21 @@ struct AppShell {
 
   aboutToAppear(): void { this.refresh(); }
 
+  private currentGids(): number { return this.games[this.gameIndex].gids; }
+
+  private selectGame(index: number): void {
+    if (index === this.gameIndex || this.busy || this.moreBusy) { return; }
+    this.gameIndex = index;
+    this.posts = [];
+    this.banners = [];
+    this.topics = [];
+    this.news = [];
+    this.newsError = '';
+    this.page = 1;
+    this.more = true;
+    this.refresh();
+  }
+
   private async refresh(): Promise<void> {
     if (this.busy || this.moreBusy) { return; }
     const token: number = ++this.generation;
@@ -48,7 +71,7 @@ struct AppShell {
     this.error = '';
     this.statState = 'loading';
     try {
-      const response = await MiyousheApi.fetchHomePosts(2, 1, 20);
+      const response = await MiyousheApi.fetchHomePosts(this.currentGids(), 1, 20);
       const data = response.data;
       if (response.retcode !== 0 || !data) { throw new Error(response.message); }
       this.posts = data.recommended_posts ? data.recommended_posts : [];
@@ -67,7 +90,7 @@ struct AppShell {
     this.moreBusy = true;
     const token: number = this.generation;
     try {
-      const response = await MiyousheApi.fetchHomePosts(2, this.page + 1, 20);
+      const response = await MiyousheApi.fetchHomePosts(this.currentGids(), this.page + 1, 20);
       const data = response.data;
       if (response.retcode !== 0 || !data) { throw new Error(response.message); }
       const incoming: PostItem[] = data.recommended_posts ? data.recommended_posts : [];
@@ -84,7 +107,7 @@ struct AppShell {
 
   private async updateStats(items: PostItem[], token: number): Promise<void> {
     try {
-      const result: DynamicPost[] = await MiyousheApi.fetchDynamicStats(2, items.map((p: PostItem) => p.post.post_id));
+      const result: DynamicPost[] = await MiyousheApi.fetchDynamicStats(this.currentGids(), items.map((p: PostItem) => p.post.post_id));
       if (token !== this.generation) { return; }
       const stats: Map<string, Stat> = new Map<string, Stat>();
       result.forEach((entry: DynamicPost) => {
@@ -108,7 +131,7 @@ struct AppShell {
     this.newsError = '';
     const request = http.createHttp();
     try {
-      const response = await request.request(`https://bbs-api.miyoushe.com/post/wapi/getNewsList?gids=2&type=${type}&page_size=20`, {
+      const response = await request.request(`https://bbs-api.miyoushe.com/post/wapi/getNewsList?gids=${this.currentGids()}&type=${type}&page_size=20`, {
         method: http.RequestMethod.GET,
         header: { 'Referer': 'https://www.miyoushe.com/', 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
         connectTimeout: 15000, readTimeout: 15000, expectDataType: http.HttpDataType.STRING
@@ -161,6 +184,19 @@ struct AppShell {
         Blank()
         Button(this.busy ? '加载中' : '刷新').enabled(!this.busy).onClick(() => this.refresh())
       }.width('100%').padding(16)
+      Scroll() {
+        Row({ space: 8 }) {
+          ForEach(this.games, (game: GameChannel, index: number) => {
+            Text(game.name)
+              .fontSize(13)
+              .fontColor(this.gameIndex === index ? Color.White : '#2563EB')
+              .padding({ left: 14, right: 14, top: 7, bottom: 7 })
+              .backgroundColor(this.gameIndex === index ? '#2563EB' : '#EAF2FF')
+              .borderRadius(16)
+              .onClick(() => this.selectGame(index))
+          }, (game: GameChannel) => game.name)
+        }.padding({ left: 16, right: 16 })
+      }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%').margin({ bottom: 8 })
       if (this.error) { Text(this.error).fontSize(12).fontColor('#B54708').padding(8) }
       if (this.busy && this.posts.length === 0) { LoadingProgress().width(40).height(40) }
       List({ space: 14 }) {
@@ -243,7 +279,7 @@ struct AppShell {
   Mine() {
     Column({ space: 16 }) {
       Text('我的米柚').fontSize(26).fontWeight(FontWeight.Bold)
-      Text('0.3.0 · 开发预览').fontSize(14).fontColor('#2563EB')
+      Text('0.4.0 · 开发预览').fontSize(14).fontColor('#2563EB')
       Text('未登录').fontSize(20).margin({ top: 24 })
       Text('当前支持匿名浏览。登录、签到、战绩尚未接入，不会收集账号密码。')
         .fontSize(14).fontColor('#667085').textAlign(TextAlign.Center)

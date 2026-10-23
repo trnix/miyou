@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { MiyousheApi } from '../net/MiyousheApi';
+import { Reply, ReplyItem, ReplyStructContent } from '../model/MiyousheModels';
 import { Format } from '../utils/Format';
 
 interface ReaderImage { url: string; width?: number; height?: number; }
@@ -29,6 +30,8 @@ struct PostDetail {
   @State isVideo: boolean = false;
   @State preview: boolean = false;
   @State previewIndex: number = 0;
+  @State replies: ReplyItem[] = [];
+  @State repliesState: string = 'idle';
   private postId: string = '';
 
   aboutToAppear(): void {
@@ -88,9 +91,37 @@ struct PostDetail {
         });
       }
       this.images = next;
+      // 评论只读;失败降级提示,不影响正文阅读。
+      this.loadReplies();
     } catch (e) {
       this.error = e instanceof Error ? e.message : '加载失败，请重试';
     } finally { this.loading = false; }
+  }
+
+  private async loadReplies(): Promise<void> {
+    this.repliesState = 'loading';
+    try {
+      const response = await MiyousheApi.fetchPostReplies(this.postId);
+      const data = response.data;
+      if (response.retcode !== 0 || !data || !data.list) { throw new Error(response.message); }
+      this.replies = data.list;
+      this.repliesState = 'done';
+    } catch (e) {
+      this.replies = [];
+      this.repliesState = 'failed';
+    }
+  }
+
+  private replyText(reply: Reply): string {
+    if (reply.struct_content && reply.struct_content.length > 0) {
+      const parts: string[] = [];
+      reply.struct_content.forEach((piece: ReplyStructContent) => {
+        if (piece.insert) { parts.push(piece.insert); }
+      });
+      const text: string = parts.join('').replace(/\n{3,}/g, '\n\n').trim();
+      if (text !== '') { return text; }
+    }
+    return reply.content ? Format.stripHtml(reply.content) : '';
   }
 
   private imageRatio(image: ReaderImage): number {
@@ -112,6 +143,31 @@ struct PostDetail {
         .onChange((index: number) => this.previewIndex = index)
       Text('左右滑动切换图片').fontSize(12).fontColor('#CCCCCC').padding(16)
     }.width('100%').height('100%').backgroundColor(Color.Black)
+  }
+
+  @Builder
+  ReplyCard(item: ReplyItem) {
+    Row({ space: 10 }) {
+      if (item.user && item.user.avatar_url) {
+        Image(item.user.avatar_url).width(30).height(30).borderRadius(15)
+      }
+      Column({ space: 4 }) {
+        Row() {
+          Text(item.user && item.user.nickname ? item.user.nickname : '米游社用户')
+            .fontSize(13).fontColor('#175CD3').fontWeight(FontWeight.Medium).layoutWeight(1)
+          Text(item.reply.created_at ? Format.time(item.reply.created_at) : '')
+            .fontSize(11).fontColor('#98A2B3')
+        }.width('100%')
+        Text(this.replyText(item.reply)).fontSize(14).lineHeight(22).fontColor('#344054').width('100%')
+        Row({ space: 12 }) {
+          Text(item.reply.like_num !== undefined ? `${Format.num(item.reply.like_num)} 赞` : '')
+            .fontSize(11).fontColor('#98A2B3')
+          Text(item.reply.sub_replies_count && item.reply.sub_replies_count > 0 ?
+            `${Format.num(item.reply.sub_replies_count)} 条回复` : '')
+            .fontSize(11).fontColor('#98A2B3')
+        }.width('100%')
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+    }.width('100%').padding(14).backgroundColor(Color.White).borderRadius(16).alignItems(VerticalAlign.Top)
   }
 
   build() {
@@ -155,6 +211,32 @@ struct PostDetail {
                   .borderRadius(12).onClick(() => { this.previewIndex = index; this.preview = true; })
               }, (image: ReaderImage) => image.url)
               Text('图片可点击预览 · 正文可长按复制').fontSize(11).fontColor('#98A2B3')
+              if (this.repliesState !== 'idle') {
+                Row() {
+                  Text('评论').fontSize(18).fontWeight(FontWeight.Bold)
+                  Blank()
+                  Text('热门优先 · 只读').fontSize(11).fontColor('#98A2B3')
+                }.width('100%').margin({ top: 8 })
+              }
+              if (this.repliesState === 'loading') {
+                LoadingProgress().width(28).height(28)
+              } else if (this.repliesState === 'failed') {
+                Column({ space: 12 }) {
+                  Text('评论暂不可用，接口可能已变更。').fontSize(13).fontColor('#B54708')
+                    .width('100%').textAlign(TextAlign.Center)
+                  Button('重试评论').onClick(() => this.loadReplies())
+                }.width('100%').padding(12)
+              } else if (this.repliesState === 'done' && this.replies.length === 0) {
+                Text('还没有评论，去官方客户端抢沙发吧。').fontSize(13).fontColor('#98A2B3').width('100%')
+              } else if (this.repliesState === 'done') {
+                Column({ space: 12 }) {
+                  ForEach(this.replies, (item: ReplyItem) => {
+                    this.ReplyCard(item)
+                  }, (item: ReplyItem) => item.reply.reply_id)
+                  Text('评论仅支持浏览，回复请前往米游社官方渠道。').fontSize(11).fontColor('#98A2B3')
+                    .width('100%').textAlign(TextAlign.Center)
+                }.width('100%')
+              }
             }.width('100%').padding(16).alignItems(HorizontalAlign.Start)
           }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
         }
