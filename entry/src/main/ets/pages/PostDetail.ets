@@ -1,203 +1,165 @@
-// 帖子详情页(阶段1只读原型)
 import { router } from '@kit.ArkUI';
 import { MiyousheApi } from '../net/MiyousheApi';
-import { PostImage } from '../model/MiyousheModels';
 import { Format } from '../utils/Format';
+
+interface ReaderImage { url: string; width?: number; height?: number; }
+interface ReaderPost {
+  subject: string; content?: string; images?: string[]; created_at?: number; view_type?: number;
+}
+interface ReaderUser { nickname?: string; avatar_url?: string; }
+interface ReaderStat { view_num?: number; like_num?: number; reply_num?: number; }
+interface ReaderContainer {
+  post?: ReaderPost; user?: ReaderUser; stat?: ReaderStat; image_list?: ReaderImage[]; vod_list?: ReaderImage[];
+}
+interface ReaderData { post?: ReaderContainer; user?: ReaderUser; stat?: ReaderStat; }
+interface ReaderResponse { retcode: number; message: string; data?: ReaderData; }
 
 @Entry
 @Component
 struct PostDetail {
   @State loading: boolean = true;
   @State error: string = '';
-  @State subject: string = '';
-  @State nickname: string = '';
-  @State avatarUrl: string = '';
-  @State textContent: string = '';
-  @State images: PostImage[] = [];
-  @State viewNum: number = 0;
-  @State likeNum: number = 0;
-  @State replyNum: number = 0;
-  @State createdAt: string = '';
+  @State title: string = '';
+  @State author: string = '';
+  @State avatar: string = '';
+  @State body: string = '';
+  @State images: ReaderImage[] = [];
+  @State statsText: string = '';
+  @State date: string = '';
   @State isVideo: boolean = false;
+  @State preview: boolean = false;
+  @State previewIndex: number = 0;
   private postId: string = '';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string> | undefined;
-    this.postId = params ? params.post_id : '';
+    this.postId = params && params.post_id ? params.post_id : '';
     this.load();
   }
 
-  async load(): Promise<void> {
-    if (!this.postId) {
-      this.error = '缺少帖子 ID';
-      this.loading = false;
-      return;
-    }
+  onBackPress(): boolean {
+    if (this.preview) { this.preview = false; return true; }
+    return false;
+  }
+
+  private count(value: number | undefined): string {
+    return value !== undefined && Number.isFinite(value) && value >= 0 ? Format.num(value) : '—';
+  }
+
+  private async load(): Promise<void> {
+    if (this.loading && this.title !== '') { return; }
     this.loading = true;
     this.error = '';
     try {
-      const resp = await MiyousheApi.fetchPostFull(this.postId);
-      if (resp.retcode !== 0 || !resp.data) {
-        const msg = resp.retcode !== 0 ? `接口返回 ${resp.retcode}: ${resp.message}` : '帖子数据为空';
-        throw new Error(msg);
+      if (!/^\d+$/.test(this.postId)) { throw new Error('缺少有效的帖子 ID'); }
+      const result = await MiyousheApi.fetchPostFull(this.postId);
+      // Dedicated transport model: images contains URL strings, image_list contains metadata.
+      const response = JSON.parse(JSON.stringify(result)) as ReaderResponse;
+      const data = response.data;
+      if (response.retcode !== 0 || !data || !data.post || !data.post.post) {
+        throw new Error(response.message || '帖子内容为空');
       }
-      const d = resp.data;
-      const container = d.post;
-      if (!container) {
-        throw new Error('帖子数据为空');
-      }
+      const container = data.post;
       const post = container.post;
-      if (!post) {
-        throw new Error('帖子数据为空');
-      }
-      this.subject = post.subject;
-      this.textContent = post.content ? Format.stripHtml(post.content) : '';
-      this.images = post.images ? post.images : [];
-      const user = d.user;
-      this.nickname = user && user.nickname ? user.nickname : '未知用户';
-      this.avatarUrl = user && user.avatar_url ? user.avatar_url : '';
-      const stat = d.stat;
-      this.viewNum = stat ? stat.view_num : 0;
-      this.likeNum = stat ? stat.like_num : 0;
-      this.replyNum = stat ? stat.reply_num : 0;
-      this.createdAt = post.created_at ? Format.time(post.created_at) : '';
-      // 视频帖:明确提示不支持,不静默丢弃
+      if (!post) { throw new Error('帖子内容为空'); }
+      const user = container.user ? container.user : data.user;
+      const stat = container.stat ? container.stat : data.stat;
+      this.title = post.subject ? post.subject : '帖子详情';
+      this.author = user && user.nickname ? user.nickname : '未知作者';
+      this.avatar = user && user.avatar_url ? user.avatar_url : '';
+      this.date = post.created_at ? Format.time(post.created_at) : '';
+      this.body = post.content ? Format.stripHtml(post.content) : '';
+      this.statsText = stat ? `${this.count(stat.view_num)} 浏览 · ${this.count(stat.like_num)} 赞 · ${this.count(stat.reply_num)} 评论` : '统计暂不可用';
       this.isVideo = post.view_type === 5 || (container.vod_list ? container.vod_list.length > 0 : false);
+      const next: ReaderImage[] = [];
+      const seen: Set<string> = new Set<string>();
+      const metadata: ReaderImage[] = container.image_list ? container.image_list : [];
+      metadata.forEach((image: ReaderImage) => {
+        if (image.url && /^https:\/\//.test(image.url) && !seen.has(image.url)) {
+          seen.add(image.url); next.push(image);
+        }
+      });
+      if (next.length === 0) {
+        const urls: string[] = post.images ? post.images : [];
+        urls.forEach((url: string) => {
+          if (typeof url === 'string' && /^https:\/\//.test(url) && !seen.has(url)) {
+            seen.add(url); next.push({ url: url });
+          }
+        });
+      }
+      this.images = next;
     } catch (e) {
-      this.error = `加载失败:${e instanceof Error ? e.message : String(e)}`;
-    } finally {
-      this.loading = false;
-    }
+      this.error = e instanceof Error ? e.message : '加载失败，请重试';
+    } finally { this.loading = false; }
+  }
+
+  private imageRatio(image: ReaderImage): number {
+    return image.width && image.height && image.width > 0 && image.height > 0 ? image.width / image.height : 1;
+  }
+
+  @Builder
+  Preview() {
+    Column() {
+      Row() {
+        Text(`${this.previewIndex + 1} / ${this.images.length}`).fontColor(Color.White).fontSize(15).layoutWeight(1)
+        Button('关闭').onClick(() => this.preview = false)
+      }.width('100%').padding(16)
+      Swiper() {
+        ForEach(this.images, (image: ReaderImage) => {
+          Image(image.url).width('100%').height('100%').objectFit(ImageFit.Contain)
+        }, (image: ReaderImage) => image.url)
+      }.width('100%').layoutWeight(1).index(this.previewIndex).loop(false).indicator(false)
+        .onChange((index: number) => this.previewIndex = index)
+      Text('左右滑动切换图片').fontSize(12).fontColor('#CCCCCC').padding(16)
+    }.width('100%').height('100%').backgroundColor(Color.Black)
   }
 
   build() {
-    Column() {
-      // 顶栏
-      Row() {
-        Button('返回')
-          .fontSize(14)
-          .height(32)
-          .backgroundColor('#F0F0F0')
-          .fontColor('#333333')
-          .onClick(() => router.back())
-        Blank()
-        Text('帖子详情')
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-        Blank()
-        Row()
-          .width(52)
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-
-      if (this.error !== '') {
-        Column() {
-          Text(this.error)
-            .fontSize(14)
-            .fontColor('#C0392B')
-            .textAlign(TextAlign.Center)
-          Button('重试')
-            .margin({ top: 12 })
-            .onClick(() => this.load())
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else if (this.loading) {
-        Column() {
-          LoadingProgress()
-            .width(48)
-            .height(48)
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        Scroll() {
-          Column() {
-            Text(this.subject)
-              .fontSize(20)
-              .fontWeight(FontWeight.Bold)
-              .width('100%')
-
-            Row() {
-              if (this.avatarUrl !== '') {
-                Image(this.avatarUrl)
-                  .width(28)
-                  .height(28)
-                  .borderRadius(14)
-                  .autoResize(true)
+    Stack() {
+      Column().width('100%').height('100%').backgroundColor('#F7F8FA')
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+      Column() {
+        Row() {
+          Button('返回').onClick(() => router.back())
+          Text('帖子详情').fontSize(17).fontWeight(FontWeight.Medium).layoutWeight(1).textAlign(TextAlign.Center)
+          Button('重载').enabled(!this.loading).onClick(() => this.load())
+        }.width('100%').padding(12)
+        if (this.loading) {
+          Column() { LoadingProgress().width(42).height(42) }
+            .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
+        } else if (this.error !== '') {
+          Column({ space: 16 }) {
+            Text(this.error).fontColor('#B42318').textAlign(TextAlign.Center)
+            Button('重试').onClick(() => this.load())
+          }.width('100%').layoutWeight(1).padding(24).justifyContent(FlexAlign.Center)
+        } else {
+          Scroll() {
+            Column({ space: 16 }) {
+              Text(this.title).fontSize(23).fontWeight(FontWeight.Bold).width('100%')
+              Row({ space: 8 }) {
+                if (this.avatar) { Image(this.avatar).width(32).height(32).borderRadius(16) }
+                Text(this.author).fontSize(14).fontColor('#475467').layoutWeight(1)
+                Text(this.date).fontSize(12).fontColor('#98A2B3')
+              }.width('100%')
+              Text(this.statsText).fontSize(12).fontColor('#98A2B3').width('100%')
+              if (this.isVideo) {
+                Text('视频播放尚未接入，当前展示图文内容。').fontSize(13).fontColor('#B54708')
+                  .width('100%').padding(12).backgroundColor('#FFFAEB').borderRadius(12)
               }
-              Text(this.nickname)
-                .fontSize(13)
-                .fontColor('#666666')
-                .margin({ left: 8 })
-              Blank()
-              Text(this.createdAt)
-                .fontSize(12)
-                .fontColor('#999999')
-            }
-            .width('100%')
-            .margin({ top: 12 })
-
-            Row() {
-              Text(`${Format.num(this.viewNum)} 浏览`)
-                .fontSize(12)
-                .fontColor('#999999')
-              Text(`${Format.num(this.likeNum)} 赞`)
-                .fontSize(12)
-                .fontColor('#999999')
-                .margin({ left: 12 })
-              Text(`${Format.num(this.replyNum)} 评论`)
-                .fontSize(12)
-                .fontColor('#999999')
-                .margin({ left: 12 })
-            }
-            .width('100%')
-            .margin({ top: 6 })
-
-            if (this.isVideo) {
-              Text('视频内容暂不支持播放,当前仅展示图文部分')
-                .fontSize(13)
-                .fontColor('#B8860B')
-                .backgroundColor('#FFF7E0')
-                .borderRadius(8)
-                .padding(10)
-                .width('100%')
-                .margin({ top: 12 })
-            }
-
-            // 帖子图片(图片帖通常图片在前)
-            ForEach(this.images, (img: PostImage) => {
-              Image(img.url)
-                .width('100%')
-                .objectFit(ImageFit.Contain)
-                .borderRadius(8)
-                .margin({ top: 12 })
-            }, (img: PostImage) => img.url)
-
-            // 正文纯文本
-            if (this.textContent !== '') {
-              Text(this.textContent)
-                .fontSize(15)
-                .lineHeight(24)
-                .fontColor('#333333')
-                .width('100%')
-                .margin({ top: 12 })
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-          .padding(16)
+              if (this.body) {
+                Text(this.body).fontSize(16).lineHeight(27).fontColor('#344054').width('100%')
+                  .copyOption(CopyOptions.Local)
+              }
+              ForEach(this.images, (image: ReaderImage, index: number) => {
+                Image(image.url).width('100%').aspectRatio(this.imageRatio(image)).objectFit(ImageFit.Contain)
+                  .borderRadius(12).onClick(() => { this.previewIndex = index; this.preview = true; })
+              }, (image: ReaderImage) => image.url)
+              Text('图片可点击预览 · 正文可长按复制').fontSize(11).fontColor('#98A2B3')
+            }.width('100%').padding(16).alignItems(HorizontalAlign.Start)
+          }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
         }
-        .width('100%')
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
-        .align(Alignment.TopStart)
-      }
-    }
-    .width('100%')
-    .height('100%')
+      }.width('100%').height('100%')
+      if (this.preview) { this.Preview() }
+    }.width('100%').height('100%')
   }
 }
