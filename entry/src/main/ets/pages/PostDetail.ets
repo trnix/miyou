@@ -91,7 +91,7 @@ struct PostDetail {
         });
       }
       this.images = next;
-      // 评论只读;失败降级提示,不影响正文阅读。
+      // 评论只读; 失败降级提示, 不影响正文阅读。
       this.loadReplies();
     } catch (e) {
       this.error = e instanceof Error ? e.message : '加载失败，请重试';
@@ -148,7 +148,7 @@ struct PostDetail {
   @Builder
   ReplyCard(item: ReplyItem) {
     Row({ space: 10 }) {
-      if (item.user && item.user.avatar_url) {
+      if (item.user && item.user.avatar_url && /^https:\/\//.test(item.user.avatar_url)) {
         Image(item.user.avatar_url).width(30).height(30).borderRadius(15)
       }
       Column({ space: 4 }) {
@@ -193,7 +193,7 @@ struct PostDetail {
             Column({ space: 16 }) {
               Text(this.title).fontSize(23).fontWeight(FontWeight.Bold).width('100%')
               Row({ space: 8 }) {
-                if (this.avatar) { Image(this.avatar).width(32).height(32).borderRadius(16) }
+                if (this.avatar && /^https:\/\//.test(this.avatar)) { Image(this.avatar).width(32).height(32).borderRadius(16) }
                 Text(this.author).fontSize(14).fontColor('#475467').layoutWeight(1)
                 Text(this.date).fontSize(12).fontColor('#98A2B3')
               }.width('100%')

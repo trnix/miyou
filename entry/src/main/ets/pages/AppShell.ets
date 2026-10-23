@@ -1,8 +1,8 @@
 import { router } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
-import uiMaterial from '@ohos.arkui.uiMaterial';
 import { MiyousheApi } from '../net/MiyousheApi';
 import { PostItem, HomeCarousel, HomeTopic, DynamicPost, Stat } from '../model/MiyousheModels';
+import { Auth } from '../utils/Auth';
 import { Format } from '../utils/Format';
 
 interface NewsData { list?: PostItem[]; }
@@ -13,6 +13,7 @@ interface GameChannel { name: string; gids: number; }
 @Entry
 @Component
 struct AppShell {
+  @StorageLink('cookie') authCookie: string = '';
   @State tab: number = 0;
   @State gameIndex: number = 0;
   @State posts: PostItem[] = [];
@@ -38,9 +39,6 @@ struct AppShell {
     { name: '绝区零', gids: MiyousheApi.GIDS_ZZZ },
     { name: '崩坏3', gids: MiyousheApi.GIDS_HONKAI3 }
   ];
-  private readonly material: uiMaterial.Material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THIN, interactive: true, lightEffect: { color: 0xFFFFFFFF }
-  });
   private readonly tools: ToolItem[] = [
     { name: '原神观测枢', description: '角色、武器与攻略资料', url: 'https://www.miyoushe.com/ys/obc/' },
     { name: '提瓦特大地图', description: '资源点与探索助手', url: 'https://webstatic.mihoyo.com/ys/app/interactive-map/' },
@@ -75,8 +73,10 @@ struct AppShell {
       const data = response.data;
       if (response.retcode !== 0 || !data) { throw new Error(response.message); }
       this.posts = data.recommended_posts ? data.recommended_posts : [];
-      this.banners = data.carousels ? data.carousels : [];
-      this.topics = data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [];
+      this.banners = (data.carousels ? data.carousels : [])
+        .filter((item: HomeCarousel) => /^https:\/\//.test(item.cover));
+      this.topics = (data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [])
+        .filter((item: HomeTopic) => !!item.name);
       this.page = 1;
       this.more = this.posts.length >= 20;
       this.updateStats(this.posts, token);
@@ -154,6 +154,11 @@ struct AppShell {
     if (index === 1 && this.news.length === 0 && !this.newsBusy) { this.loadNews(this.newsType); }
   }
 
+  private logout(): void {
+    Auth.clear();
+    MiyousheApi.setCookie('');
+  }
+
   @Builder
   Card(item: PostItem, official: boolean) {
     Column({ space: 10 }) {
@@ -161,7 +166,7 @@ struct AppShell {
         .fontSize(11).fontColor('#2563EB').width('100%')
       Text(item.post.subject).fontSize(17).fontWeight(FontWeight.Medium)
         .fontColor('#101828').maxLines(3).width('100%')
-      if (item.post.cover) {
+      if (item.post.cover && /^https:\/\//.test(item.post.cover)) {
         Image(item.post.cover).width('100%').height(160).objectFit(ImageFit.Cover).borderRadius(14)
       }
       Row() {
@@ -173,6 +178,7 @@ struct AppShell {
       }.width('100%')
     }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(20)
       .alignItems(HorizontalAlign.Start)
+      .shadow({ radius: 12, color: '#0D101828', offsetX: 0, offsetY: 4 })
       .onClick(() => router.pushUrl({ url: 'pages/PostDetail', params: { post_id: item.post.post_id } }))
   }
 
@@ -280,9 +286,17 @@ struct AppShell {
     Column({ space: 16 }) {
       Text('我的米柚').fontSize(26).fontWeight(FontWeight.Bold)
       Text('0.4.0 · 开发预览').fontSize(14).fontColor('#2563EB')
-      Text('未登录').fontSize(20).margin({ top: 24 })
-      Text('当前支持匿名浏览。登录、签到、战绩尚未接入，不会收集账号密码。')
-        .fontSize(14).fontColor('#667085').textAlign(TextAlign.Center)
+      Text(this.authCookie !== '' ? '已登录 · 官方网页会话' : '未登录')
+        .fontSize(20).margin({ top: 24 })
+      if (this.authCookie === '') {
+        Text('通过米游社官方页面登录, 应用只保存会话 Cookie, 不接触账号密码。')
+          .fontSize(13).fontColor('#667085').textAlign(TextAlign.Center)
+        Button('通过官方页面登录').onClick(() => router.pushUrl({ url: 'pages/Login' }))
+      } else {
+        Text('会话保存在本机, 退出登录将清除本地 Cookie。建议仅使用小号, 存在官方风控可能。')
+          .fontSize(13).fontColor('#667085').textAlign(TextAlign.Center)
+        Button('退出登录').onClick(() => this.logout())
+      }
       Text('米柚是非官方客户端，与米哈游无隶属关系。').fontSize(12).fontColor('#98A2B3')
       Button('返回社区').onClick(() => this.selectTab(0))
       Blank()
@@ -290,28 +304,29 @@ struct AppShell {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.Bottom }) {
       Column().width('100%').height('100%').backgroundColor('#F7F8FA')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       Column() {
-        Column() {
-          if (this.tab === 0) { this.Community() }
-          else if (this.tab === 1) { this.Official() }
-          else if (this.tab === 2) { this.Tools() }
-          else { this.Mine() }
-        }.width('100%').layoutWeight(1)
-        Row() {
-          ForEach(this.labels, (label: string, index: number) => {
-            Column({ space: 3 }) {
-              Text(this.marks[index]).fontSize(22).fontColor(this.tab === index ? '#2563EB' : '#667085')
-              Text(label).fontSize(11).fontColor(this.tab === index ? '#2563EB' : '#667085')
-            }.layoutWeight(1).height(54).justifyContent(FlexAlign.Center)
-              .borderRadius(24).backgroundColor(this.tab === index ? '#222563EB' : Color.Transparent)
-              .accessibilityText(label).onClick(() => this.selectTab(index))
-          }, (label: string) => label)
-        }.width('92%').padding(6).margin({ top: 8, bottom: 8 }).borderRadius(32)
-          .backgroundColor('#F2FFFFFF').systemMaterial(this.material)
-      }.width('100%').height('100%')
+        if (this.tab === 0) { this.Community() }
+        else if (this.tab === 1) { this.Official() }
+        else if (this.tab === 2) { this.Tools() }
+        else { this.Mine() }
+      }.width('100%').height('100%').padding({ bottom: 96 })
+      Row() {
+        ForEach(this.labels, (label: string, index: number) => {
+          Column({ space: 3 }) {
+            Text(this.marks[index]).fontSize(22).fontColor(this.tab === index ? '#2563EB' : '#667085')
+            Text(label).fontSize(11).fontColor(this.tab === index ? '#2563EB' : '#667085')
+          }.layoutWeight(1).height(52).justifyContent(FlexAlign.Center)
+            .borderRadius(24).backgroundColor(this.tab === index ? '#262563EB' : Color.Transparent)
+            .accessibilityText(label).onClick(() => this.selectTab(index))
+        }, (label: string) => label)
+      }.width('92%').height(64).padding(6).borderRadius(32)
+        .backgroundColor('#D9FFFFFF')
+        .backgroundBlurStyle(BlurStyle.Thin)
+        .shadow({ radius: 20, color: '#1F101828', offsetX: 0, offsetY: 8 })
+        .margin({ bottom: 18 })
     }.width('100%').height('100%')
   }
 }

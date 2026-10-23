@@ -1,6 +1,5 @@
-// 0.2.0 首页：轮播、话题、置顶、月榜，以及可降级沉浸光感材质。
+// 0.4.0 首页：轮播、话题、置顶、月榜；移除实验性 uiMaterial 材质以兼容真机。
 import { router } from '@kit.ArkUI';
-import uiMaterial from '@ohos.arkui.uiMaterial';
 import { MiyousheApi } from '../net/MiyousheApi';
 import {
   DynamicPost,
@@ -13,6 +12,7 @@ import {
 import { Format } from '../utils/Format';
 
 const PAGE_SIZE: number = 20;
+const CARD_SHADOW: ShadowOptions = { radius: 12, color: '#0D101828', offsetX: 0, offsetY: 4 };
 
 @Entry
 @Component
@@ -27,24 +27,6 @@ struct Index {
   @State loadingMore: boolean = false;
   @State hasMore: boolean = true;
   @State error: string = '';
-
-  private readonly chromeMaterial: uiMaterial.Material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
-    materialColor: 0xE8FFFFFF,
-    colorInvert: false,
-    applyShadow: true,
-    interactive: true,
-    lightEffect: { color: 0x80FFFFFF }
-  })
-
-  private readonly cardMaterial: uiMaterial.Material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.REGULAR,
-    materialColor: 0xEFFFFFFF,
-    colorInvert: false,
-    applyShadow: true,
-    interactive: true,
-    lightEffect: { color: 0x80FFFFFF }
-  })
 
   aboutToAppear(): void {
     this.refresh();
@@ -65,8 +47,10 @@ struct Index {
       const list: PostItem[] = data.recommended_posts ? data.recommended_posts : [];
       this.posts = list;
       this.fixedPosts = data.fixed_posts ? data.fixed_posts : [];
-      this.carousels = data.carousels ? data.carousels : [];
-      this.topics = data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [];
+      this.carousels = (data.carousels ? data.carousels : [])
+        .filter((item: HomeCarousel) => /^https:\/\//.test(item.cover));
+      this.topics = (data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [])
+        .filter((item: HomeTopic) => !!item.name);
       this.selectionPosts = data.selection_post_list ? data.selection_post_list : [];
       this.page = 1;
       this.hasMore = list.length >= PAGE_SIZE;
@@ -163,19 +147,25 @@ struct Index {
       }
       .alignItems(HorizontalAlign.Start)
       Blank()
+      Button('返回')
+        .fontSize(13)
+        .height(34)
+        .onClick(() => router.back())
       Button(this.loading ? '刷新中' : '刷新')
         .fontSize(13)
         .height(34)
         .enabled(!this.loading)
+        .margin({ left: 8 })
         .onClick(() => this.refresh())
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .margin({ left: 16, right: 16, top: 8, bottom: 12 })
     .borderRadius(22)
-    .backgroundColor('#F5F6FA')
+    .backgroundColor('#F2FFFFFF')
+    .backgroundBlurStyle(BlurStyle.Thin)
     .clip(true)
-    .systemMaterial(this.chromeMaterial)
+    .shadow(CARD_SHADOW)
   }
 
   @Builder
@@ -220,10 +210,12 @@ struct Index {
         ForEach(this.topics.slice(0, 8), (topic: HomeTopic) => {
           ListItem() {
             Stack({ alignContent: Alignment.BottomStart }) {
-              Image(topic.cover)
-                .width(142)
-                .height(58)
-                .objectFit(ImageFit.Cover)
+              if (/^https:\/\//.test(topic.cover)) {
+                Image(topic.cover)
+                  .width(142)
+                  .height(58)
+                  .objectFit(ImageFit.Cover)
+              }
               Text(`# ${topic.name}`)
                 .fontSize(12)
                 .fontColor(Color.White)
@@ -237,6 +229,7 @@ struct Index {
             .width(142)
             .height(58)
             .borderRadius(14)
+            .backgroundColor('#EAF2FF')
             .clip(true)
           }
         }, (topic: HomeTopic) => `${topic.id}`)
@@ -250,9 +243,9 @@ struct Index {
     .width('100%')
     .padding(12)
     .borderRadius(18)
-    .backgroundColor('#F5F6FA')
+    .backgroundColor(Color.White)
     .clip(true)
-    .systemMaterial(this.cardMaterial)
+    .shadow(CARD_SHADOW)
   }
 
   @Builder
@@ -293,9 +286,9 @@ struct Index {
     .width('100%')
     .padding(12)
     .borderRadius(18)
-    .backgroundColor('#F5F6FA')
+    .backgroundColor(Color.White)
     .clip(true)
-    .systemMaterial(this.cardMaterial)
+    .shadow(CARD_SHADOW)
   }
 
   @Builder
@@ -313,7 +306,7 @@ struct Index {
       .width('100%')
       ForEach(this.selectionPosts.slice(0, 3), (item: SelectionPost, index: number) => {
         Row({ space: 10 }) {
-          if (item.banner) {
+          if (item.banner && /^https:\/\//.test(item.banner)) {
             Image(item.banner)
               .width(58)
               .height(42)
@@ -344,9 +337,9 @@ struct Index {
     .width('100%')
     .padding(12)
     .borderRadius(18)
-    .backgroundColor('#F5F6FA')
+    .backgroundColor(Color.White)
     .clip(true)
-    .systemMaterial(this.cardMaterial)
+    .shadow(CARD_SHADOW)
   }
 
   @Builder
@@ -389,7 +382,7 @@ struct Index {
         .width('100%')
         .margin({ top: 8 })
 
-      if (item.post.cover && item.post.cover !== '') {
+      if (item.post.cover && /^https:\/\//.test(item.post.cover)) {
         Image(item.post.cover)
           .width('100%')
           .height(164)
@@ -399,7 +392,7 @@ struct Index {
       }
 
       Row() {
-        if (item.user.avatar_url && item.user.avatar_url !== '') {
+        if (item.user.avatar_url && /^https:\/\//.test(item.user.avatar_url)) {
           Image(item.user.avatar_url)
             .width(24)
             .height(24)
@@ -444,9 +437,9 @@ struct Index {
     .width('100%')
     .padding(14)
     .borderRadius(20)
-    .backgroundColor('#F5F6FA')
+    .backgroundColor(Color.White)
     .clip(true)
-    .systemMaterial(this.cardMaterial)
+    .shadow(CARD_SHADOW)
     .onClick(() => router.pushUrl({ url: 'pages/PostDetail', params: { post_id: item.post.post_id } }))
   }
 
