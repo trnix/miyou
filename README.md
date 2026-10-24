@@ -15,7 +15,7 @@
 ## 目录结构
 
 ```
-├── .github/workflows/build.yml   # CI:下载工具链 → 构建 → 签名 → 上传 Release
+├── .github/workflows/build.yml   # CI:下载工具链 → 构建 → 签名 → 自动 Release
 ├── scripts/sign.sh                # 用 hap-sign-tool 给 HAP 签名
 ├── docs/signing.md                # 申请调试证书/Profile 并配置 Secrets 的完整指南
 ├── docs/sideload.md               # 手机侧载安装指南
@@ -38,9 +38,9 @@
 4. **配置 GitHub**:在仓库 **Settings → Secrets and variables → Actions** 中添加:
    - **`CLI_TOOLS_URL`** = 华为下载中心「Command Line Tools」Linux x86-64 版直链(需登录后获取,方法见 [docs/signing.md](docs/signing.md);Variables 或 Secrets 均可)
    - **Secrets(6 个)**:`SIGNING_P12`、`SIGNING_CERT`、`SIGNING_PROFILE`(三个文件各自 base64 后的文本)、`SIGNING_KEY_ALIAS`、`SIGNING_KEYSTORE_PASSWORD`、`SIGNING_KEY_PASSWORD`
-5. **触发构建**:
-   - 推送到 `main` 分支 → 构建并在 Artifacts 中查看产物(未配置签名 Secrets 时会上传未签名包,仅用于验证编译)
-   - 推送 `v0.1.0` 之类的 **tag** → 构建并自动创建 GitHub Release(必须已配置签名,否则构建失败,不会发布未签名包)
+5. **触发构建**(合并到 main 即自动打包,无需手动建 tag):
+   - 推送到 `main` 分支 → 构建、签名并**自动创建预发布 Release**(自动 tag 形如 `v0.4.0-b42`,版本号从 `AppScope/app.json5` 读取);未配置签名 Secrets 时只上传未签名 Artifacts,仅用于验证编译
+   - 推送 `v0.5.0` 之类的 **tag** → 正式 Release 并标记为 latest(必须已配置签名,否则构建失败,不会发布未签名包)
 6. **侧载安装**:下载 Release 中的 `app-signed.hap`,按 [docs/sideload.md](docs/sideload.md) 用 `hdc install` 装到手机。
 
 ## 工作流说明
@@ -52,7 +52,7 @@ CI 做了这些事(全部在云端,本地无需安装 DevEco Studio):
 3. 配置 ohpm 仓库源,安装工程及 entry 模块依赖
 4. `hvigorw assembleHap` 构建 HAP
 5. 用 `hap-sign-tool` 以调试证书签名(材料来自 Secrets,不进仓库;tag 构建缺材料直接失败)
-6. 上传 Artifacts;若是 tag 推送,则同时创建 Release
+6. 上传 Artifacts;**main 推送且签名成功时自动创建预发布 Release**(tag 自动递增),`v*` tag 推送时创建正式 Release
 
 ## 常见问题排查
 
@@ -64,6 +64,7 @@ CI 做了这些事(全部在云端,本地无需安装 DevEco Studio):
 | 安装提示签名校验失败 | 按顺序检查:1) 当前设备 UDID 是否已注册进调试 Profile(按 docs/signing.md);2) 调试证书与 Profile 是否在有效期内;3) CI 是否用了正确的调试证书 Secrets |
 | 证书或 Profile 到期 | 调试证书和调试 Profile 各有有效期,请在 AGC 页面查看实际到期时间,到期前重新申请并更新对应 Secrets |
 | HAP 构建成功但装不上别的设备 | 正常现象:调试包只能安装到 Profile 里注册过的设备,不是通用发行包 |
+| main 推送后 Release 没出现 | 多半是签名 Secrets 未配置或已过期,此时只会出未签名 Artifacts。到 Actions 运行日志看「Warn when auto-release skipped」警告,补齐 6 个签名 Secrets 后重新触发即可 |
 
 ## 多端适配说明
 
