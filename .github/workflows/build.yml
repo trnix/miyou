@@ -105,7 +105,8 @@ jobs:
 
       - name: Warn when auto-release skipped
         if: ${{ github.ref == 'refs/heads/main' && steps.sign.outputs.signed == 'false' }}
-        run: echo "::warning::main 自动 Release 已跳过: 未配置签名 Secrets。请在 Settings → Secrets and variables → Actions 添加 6 个签名 Secrets(方法见 docs/signing.md), 本次仅上传未签名 Artifacts 用于验证编译。"
+        run: |
+          echo "::warning::main 自动 Release 已跳过: 未配置签名 Secrets。请在 Settings → Secrets and variables → Actions 添加 6 个签名 Secrets(方法见 docs/signing.md), 本次仅上传未签名 Artifacts 用于验证编译。"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
