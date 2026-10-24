@@ -3,6 +3,7 @@
     "pages/AppShell",
     "pages/Index",
     "pages/PostDetail",
-    "pages/ToolWeb"
+    "pages/ToolWeb",
+    "pages/Login"
   ]
 }

@@ -107,3 +107,36 @@ export interface PostDetailResponse {
   message: string;
   data?: PostDetailData;
 }
+
+// 评论楼层(getPostReplies,0.4.0 新增)
+export interface ReplyUser {
+  uid?: string;
+  nickname?: string;
+  avatar_url?: string;
+}
+export interface ReplyStructContent {
+  insert?: string;
+}
+export interface Reply {
+  reply_id: string;
+  struct_content?: ReplyStructContent[];
+  content?: string;
+  like_num?: number;
+  created_at?: number;
+  sub_replies_count?: number;
+  f_floor?: number;
+}
+export interface ReplyItem {
+  reply: Reply;
+  user?: ReplyUser;
+}
+export interface RepliesData {
+  list?: ReplyItem[];
+  is_last?: boolean;
+  last_id?: string;
+}
+export interface RepliesResponse {
+  retcode: number;
+  message: string;
+  data?: RepliesData;
+}

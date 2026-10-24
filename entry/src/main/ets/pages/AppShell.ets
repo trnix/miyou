@@ -1,18 +1,21 @@
 import { router } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
-import uiMaterial from '@ohos.arkui.uiMaterial';
 import { MiyousheApi } from '../net/MiyousheApi';
 import { PostItem, HomeCarousel, HomeTopic, DynamicPost, Stat } from '../model/MiyousheModels';
+import { Auth } from '../utils/Auth';
 import { Format } from '../utils/Format';
 
 interface NewsData { list?: PostItem[]; }
 interface NewsResponse { retcode: number; message: string; data?: NewsData; }
 interface ToolItem { name: string; description: string; url: string; }
+interface GameChannel { name: string; gids: number; }
 
 @Entry
 @Component
 struct AppShell {
+  @StorageLink('cookie') authCookie: string = '';
   @State tab: number = 0;
+  @State gameIndex: number = 0;
   @State posts: PostItem[] = [];
   @State banners: HomeCarousel[] = [];
   @State topics: HomeTopic[] = [];
@@ -30,9 +33,12 @@ struct AppShell {
   private newsGeneration: number = 0;
   private readonly labels: string[] = ['社区', '官方', '工具', '我的'];
   private readonly marks: string[] = ['◈', '▤', '◇', '◎'];
-  private readonly material: uiMaterial.Material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THIN, interactive: true, lightEffect: { color: 0xFFFFFFFF }
-  });
+  private readonly games: GameChannel[] = [
+    { name: '原神', gids: MiyousheApi.GIDS_GENSHIN },
+    { name: '星穹铁道', gids: MiyousheApi.GIDS_STAR_RAIL },
+    { name: '绝区零', gids: MiyousheApi.GIDS_ZZZ },
+    { name: '崩坏3', gids: MiyousheApi.GIDS_HONKAI3 }
+  ];
   private readonly tools: ToolItem[] = [
     { name: '原神观测枢', description: '角色、武器与攻略资料', url: 'https://www.miyoushe.com/ys/obc/' },
     { name: '提瓦特大地图', description: '资源点与探索助手', url: 'https://webstatic.mihoyo.com/ys/app/interactive-map/' },
@@ -41,6 +47,21 @@ struct AppShell {
 
   aboutToAppear(): void { this.refresh(); }
 
+  private currentGids(): number { return this.games[this.gameIndex].gids; }
+
+  private selectGame(index: number): void {
+    if (index === this.gameIndex || this.busy || this.moreBusy) { return; }
+    this.gameIndex = index;
+    this.posts = [];
+    this.banners = [];
+    this.topics = [];
+    this.news = [];
+    this.newsError = '';
+    this.page = 1;
+    this.more = true;
+    this.refresh();
+  }
+
   private async refresh(): Promise<void> {
     if (this.busy || this.moreBusy) { return; }
     const token: number = ++this.generation;
@@ -48,12 +69,14 @@ struct AppShell {
     this.error = '';
     this.statState = 'loading';
     try {
-      const response = await MiyousheApi.fetchHomePosts(2, 1, 20);
+      const response = await MiyousheApi.fetchHomePosts(this.currentGids(), 1, 20);
       const data = response.data;
       if (response.retcode !== 0 || !data) { throw new Error(response.message); }
       this.posts = data.recommended_posts ? data.recommended_posts : [];
-      this.banners = data.carousels ? data.carousels : [];
-      this.topics = data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [];
+      this.banners = (data.carousels ? data.carousels : [])
+        .filter((item: HomeCarousel) => /^https:\/\//.test(item.cover));
+      this.topics = (data.recommended_topics && data.recommended_topics.list ? data.recommended_topics.list : [])
+        .filter((item: HomeTopic) => !!item.name);
       this.page = 1;
       this.more = this.posts.length >= 20;
       this.updateStats(this.posts, token);
@@ -67,7 +90,7 @@ struct AppShell {
     this.moreBusy = true;
     const token: number = this.generation;
     try {
-      const response = await MiyousheApi.fetchHomePosts(2, this.page + 1, 20);
+      const response = await MiyousheApi.fetchHomePosts(this.currentGids(), this.page + 1, 20);
       const data = response.data;
       if (response.retcode !== 0 || !data) { throw new Error(response.message); }
       const incoming: PostItem[] = data.recommended_posts ? data.recommended_posts : [];
@@ -84,7 +107,7 @@ struct AppShell {
 
   private async updateStats(items: PostItem[], token: number): Promise<void> {
     try {
-      const result: DynamicPost[] = await MiyousheApi.fetchDynamicStats(2, items.map((p: PostItem) => p.post.post_id));
+      const result: DynamicPost[] = await MiyousheApi.fetchDynamicStats(this.currentGids(), items.map((p: PostItem) => p.post.post_id));
       if (token !== this.generation) { return; }
       const stats: Map<string, Stat> = new Map<string, Stat>();
       result.forEach((entry: DynamicPost) => {
@@ -108,7 +131,7 @@ struct AppShell {
     this.newsError = '';
     const request = http.createHttp();
     try {
-      const response = await request.request(`https://bbs-api.miyoushe.com/post/wapi/getNewsList?gids=2&type=${type}&page_size=20`, {
+      const response = await request.request(`https://bbs-api.miyoushe.com/post/wapi/getNewsList?gids=${this.currentGids()}&type=${type}&page_size=20`, {
         method: http.RequestMethod.GET,
         header: { 'Referer': 'https://www.miyoushe.com/', 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
         connectTimeout: 15000, readTimeout: 15000, expectDataType: http.HttpDataType.STRING
@@ -131,6 +154,11 @@ struct AppShell {
     if (index === 1 && this.news.length === 0 && !this.newsBusy) { this.loadNews(this.newsType); }
   }
 
+  private logout(): void {
+    Auth.clear();
+    MiyousheApi.setCookie('');
+  }
+
   @Builder
   Card(item: PostItem, official: boolean) {
     Column({ space: 10 }) {
@@ -138,7 +166,7 @@ struct AppShell {
         .fontSize(11).fontColor('#2563EB').width('100%')
       Text(item.post.subject).fontSize(17).fontWeight(FontWeight.Medium)
         .fontColor('#101828').maxLines(3).width('100%')
-      if (item.post.cover) {
+      if (item.post.cover && /^https:\/\//.test(item.post.cover)) {
         Image(item.post.cover).width('100%').height(160).objectFit(ImageFit.Cover).borderRadius(14)
       }
       Row() {
@@ -150,6 +178,7 @@ struct AppShell {
       }.width('100%')
     }.width('100%').padding(16).backgroundColor(Color.White).borderRadius(20)
       .alignItems(HorizontalAlign.Start)
+      .shadow({ radius: 12, color: '#0D101828', offsetX: 0, offsetY: 4 })
       .onClick(() => router.pushUrl({ url: 'pages/PostDetail', params: { post_id: item.post.post_id } }))
   }
 
@@ -161,6 +190,19 @@ struct AppShell {
         Blank()
         Button(this.busy ? '加载中' : '刷新').enabled(!this.busy).onClick(() => this.refresh())
       }.width('100%').padding(16)
+      Scroll() {
+        Row({ space: 8 }) {
+          ForEach(this.games, (game: GameChannel, index: number) => {
+            Text(game.name)
+              .fontSize(13)
+              .fontColor(this.gameIndex === index ? Color.White : '#2563EB')
+              .padding({ left: 14, right: 14, top: 7, bottom: 7 })
+              .backgroundColor(this.gameIndex === index ? '#2563EB' : '#EAF2FF')
+              .borderRadius(16)
+              .onClick(() => this.selectGame(index))
+          }, (game: GameChannel) => game.name)
+        }.padding({ left: 16, right: 16 })
+      }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%').margin({ bottom: 8 })
       if (this.error) { Text(this.error).fontSize(12).fontColor('#B54708').padding(8) }
       if (this.busy && this.posts.length === 0) { LoadingProgress().width(40).height(40) }
       List({ space: 14 }) {
@@ -243,10 +285,18 @@ struct AppShell {
   Mine() {
     Column({ space: 16 }) {
       Text('我的米柚').fontSize(26).fontWeight(FontWeight.Bold)
-      Text('0.3.0 · 开发预览').fontSize(14).fontColor('#2563EB')
-      Text('未登录').fontSize(20).margin({ top: 24 })
-      Text('当前支持匿名浏览。登录、签到、战绩尚未接入，不会收集账号密码。')
-        .fontSize(14).fontColor('#667085').textAlign(TextAlign.Center)
+      Text('0.4.0 · 开发预览').fontSize(14).fontColor('#2563EB')
+      Text(this.authCookie !== '' ? '已登录 · 官方网页会话' : '未登录')
+        .fontSize(20).margin({ top: 24 })
+      if (this.authCookie === '') {
+        Text('通过米游社官方页面登录, 应用只保存会话 Cookie, 不接触账号密码。')
+          .fontSize(13).fontColor('#667085').textAlign(TextAlign.Center)
+        Button('通过官方页面登录').onClick(() => router.pushUrl({ url: 'pages/Login' }))
+      } else {
+        Text('会话保存在本机, 退出登录将清除本地 Cookie。建议仅使用小号, 存在官方风控可能。')
+          .fontSize(13).fontColor('#667085').textAlign(TextAlign.Center)
+        Button('退出登录').onClick(() => this.logout())
+      }
       Text('米柚是非官方客户端，与米哈游无隶属关系。').fontSize(12).fontColor('#98A2B3')
       Button('返回社区').onClick(() => this.selectTab(0))
       Blank()
@@ -254,28 +304,29 @@ struct AppShell {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.Bottom }) {
       Column().width('100%').height('100%').backgroundColor('#F7F8FA')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       Column() {
-        Column() {
-          if (this.tab === 0) { this.Community() }
-          else if (this.tab === 1) { this.Official() }
-          else if (this.tab === 2) { this.Tools() }
-          else { this.Mine() }
-        }.width('100%').layoutWeight(1)
-        Row() {
-          ForEach(this.labels, (label: string, index: number) => {
-            Column({ space: 3 }) {
-              Text(this.marks[index]).fontSize(22).fontColor(this.tab === index ? '#2563EB' : '#667085')
-              Text(label).fontSize(11).fontColor(this.tab === index ? '#2563EB' : '#667085')
-            }.layoutWeight(1).height(54).justifyContent(FlexAlign.Center)
-              .borderRadius(24).backgroundColor(this.tab === index ? '#222563EB' : Color.Transparent)
-              .accessibilityText(label).onClick(() => this.selectTab(index))
-          }, (label: string) => label)
-        }.width('92%').padding(6).margin({ top: 8, bottom: 8 }).borderRadius(32)
-          .backgroundColor('#F2FFFFFF').systemMaterial(this.material)
-      }.width('100%').height('100%')
+        if (this.tab === 0) { this.Community() }
+        else if (this.tab === 1) { this.Official() }
+        else if (this.tab === 2) { this.Tools() }
+        else { this.Mine() }
+      }.width('100%').height('100%').padding({ bottom: 96 })
+      Row() {
+        ForEach(this.labels, (label: string, index: number) => {
+          Column({ space: 3 }) {
+            Text(this.marks[index]).fontSize(22).fontColor(this.tab === index ? '#2563EB' : '#667085')
+            Text(label).fontSize(11).fontColor(this.tab === index ? '#2563EB' : '#667085')
+          }.layoutWeight(1).height(52).justifyContent(FlexAlign.Center)
+            .borderRadius(24).backgroundColor(this.tab === index ? '#262563EB' : Color.Transparent)
+            .accessibilityText(label).onClick(() => this.selectTab(index))
+        }, (label: string) => label)
+      }.width('92%').height(64).padding(6).borderRadius(32)
+        .backgroundColor('#D9FFFFFF')
+        .backgroundBlurStyle(BlurStyle.Thin)
+        .shadow({ radius: 20, color: '#1F101828', offsetX: 0, offsetY: 8 })
+        .margin({ bottom: 18 })
     }.width('100%').height('100%')
   }
 }

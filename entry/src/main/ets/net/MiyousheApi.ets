@@ -1,6 +1,6 @@
-// 网页只读接口；不携带登录凭据，统计失败不阻断帖子浏览。
+// 网页接口封装; 登录后自动携带会话 Cookie, 统计/评论失败不阻断阅读。
 import { http } from '@kit.NetworkKit';
-import { WebHomeResponse, PostDetailResponse, DynamicPost, DynamicResponse } from '../model/MiyousheModels';
+import { WebHomeResponse, PostDetailResponse, DynamicPost, DynamicResponse, RepliesResponse } from '../model/MiyousheModels';
 
 const WEB_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -12,7 +12,16 @@ const WEB_HEADERS: Record<string, string> = {
 
 export class MiyousheApi {
   static readonly GIDS_GENSHIN: number = 2;
+  static readonly GIDS_HONKAI3: number = 3;
+  static readonly GIDS_STAR_RAIL: number = 6;
+  static readonly GIDS_ZZZ: number = 8;
   private static readonly DYNAMIC_BATCH_SIZE: number = 50;
+  private static sessionCookie: string = '';
+
+  // 由 Auth 注入/清除登录会话; 空串即匿名。
+  static setCookie(cookie: string): void {
+    MiyousheApi.sessionCookie = cookie ? cookie : '';
+  }
 
   static async fetchHomePosts(gids: number, page: number, pageSize: number): Promise<WebHomeResponse> {
     const size: number = Math.max(1, Math.min(50, Math.floor(pageSize)));
@@ -56,12 +65,30 @@ export class MiyousheApi {
     return JSON.parse(await MiyousheApi.httpGet(url)) as PostDetailResponse;
   }
 
+  // 评论楼层(web 端 getPostReplies, 源自已归档的 UIGF-org/mihoyo-api-collect 文档)。
+  // 接口时效需真机/抓包复核; 调用方在失败时降级展示, 不阻断帖子阅读。
+  static async fetchPostReplies(postId: string, pageSize: number = 20, lastId: string = ''): Promise<RepliesResponse> {
+    if (!/^\d+$/.test(postId)) {
+      throw new Error('帖子 ID 格式不正确');
+    }
+    const size: number = Math.max(1, Math.min(50, Math.floor(pageSize)));
+    let url: string = `https://bbs-api.miyoushe.com/post/api/getPostReplies?post_id=${encodeURIComponent(postId)}&size=${size}&only_good_replies=false&is_hot=true`;
+    if (lastId !== '' && /^\d+$/.test(lastId)) {
+      url += `&last_id=${lastId}`;
+    }
+    return JSON.parse(await MiyousheApi.httpGet(url)) as RepliesResponse;
+  }
+
   private static async httpGet(url: string, timeout: number = 15000): Promise<string> {
+    const headers: Record<string, string> = WEB_HEADERS;
+    if (MiyousheApi.sessionCookie !== '') {
+      headers['Cookie'] = MiyousheApi.sessionCookie;
+    }
     const req = http.createHttp();
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
-        header: WEB_HEADERS,
+        header: headers,
         connectTimeout: timeout,
         readTimeout: timeout,
         expectDataType: http.HttpDataType.STRING
