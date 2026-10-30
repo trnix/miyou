@@ -10,34 +10,63 @@ import { GlassTheme } from './GlassTheme';
 export struct MineTab {
   @StorageLink('cookie') cookie: string = '';
   @StorageLink('glassLevel') glassLevel: number = 2;
-  @State probeResult: string = '尚未探活。探活流程：获取设备指纹 → getGameRecordCard → 显示角色。';
+  @State probeResult: string = '尚未探活。探活为三段式诊断：全头 / 裸请求 / bbs 用户态对照。';
   @State probing: boolean = false;
   private glassLabels: string[] = ['关闭', '弱', '中', '强'];
+
+  private trimMsg(s: string): string {
+    return s.length > 160 ? s.substring(0, 160) + '…' : s;
+  }
+
+  private extractMsg(body: string): string {
+    try {
+      const obj = JSON.parse(body) as Record<string, Object>;
+      const rc = obj['retcode'];
+      const msg = obj['message'];
+      const rcText = typeof rc === 'number' ? rc.toString() : '?';
+      const msgText = typeof msg === 'string' ? msg : '';
+      return `retcode ${rcText}（${msgText}）`;
+    } catch (e) {
+      return this.trimMsg(body);
+    }
+  }
 
   private async probe(): Promise<void> {
     this.probing = true;
     this.probeResult = '探活中…';
+    const uid = Session.stuid();
+    const recordUrl = `${Endpoints.GAME_RECORD_CARD}?uid=${uid}`;
+    const lines: string[] = [`uid: ${uid.length > 0 ? uid : '未提取到'}`];
     try {
       await DeviceIdentity.ensureFp();
-      const uid = Session.stuid();
-      const url = `${Endpoints.GAME_RECORD_CARD}?uid=${uid}`;
-      const raw = await MysHttp.getObject(url, true);
-      const result: RecordCardResult = GameRecord.parseRoles(raw);
-      if (result.ok) {
-        if (result.roles.length > 0) {
-          const names = result.roles.map((r: GameRole) => `${r.nickname} Lv.${r.level}`).join('、');
-          this.probeResult = `探活成功：${names}`;
+      try {
+        const a = await MysHttp.getObject(recordUrl, true);
+        const ar: RecordCardResult = GameRecord.parseRoles(a);
+        if (ar.ok && ar.roles.length > 0) {
+          const names = ar.roles.map((r: GameRole) => `${r.nickname} Lv.${r.level}`).join('、');
+          lines.push(`A 全头 record 域: 成功，角色 ${ar.roles.length} 个（${names}）`);
         } else {
-          this.probeResult = '探活成功：接口正常，账号未绑定游戏角色。';
+          lines.push(`A 全头 record 域: retcode ${ar.retcode}（${this.trimMsg(ar.message)}）`);
         }
-      } else {
-        this.probeResult = `探活失败：retcode ${result.retcode}（${result.message}）。-100/-10001 表示登录态失效，请重新登录。`;
+      } catch (e) {
+        lines.push('A 全头 record 域: 网络异常');
       }
-    } catch (e) {
-      this.probeResult = '探活失败：网络异常，请检查网络后重试。';
+      try {
+        const b = await MysHttp.getBare(recordUrl, true);
+        lines.push(`B 裸请求 record 域: HTTP ${b.httpCode}，${this.extractMsg(b.body)}`);
+      } catch (e) {
+        lines.push('B 裸请求 record 域: 网络异常');
+      }
+      try {
+        const c = await MysHttp.getBare(Endpoints.BBS_USER_INFO, true);
+        lines.push(`C 裸请求 bbs 用户态: HTTP ${c.httpCode}，${this.extractMsg(c.body)}`);
+      } catch (e) {
+        lines.push('C 裸请求 bbs 用户态: 网络异常');
+      }
     } finally {
       this.probing = false;
     }
+    this.probeResult = lines.join('\n');
   }
 
   build() {
@@ -78,6 +107,7 @@ export struct MineTab {
             .fontColor('#667085')
             .width('100%')
             .lineHeight(18)
+            .copyOption(CopyOptions.LocalDevice)
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')
@@ -107,7 +137,7 @@ export struct MineTab {
         .backgroundColor('#FFFFFF')
         .borderRadius(16)
 
-        Text('米柚 0.5.0 · 非官方米游社客户端 · 只读应用')
+        Text('米柚 0.5.1 · 非官方米游社客户端 · 只读应用')
           .fontSize(11)
           .fontColor('#98A2B3')
           .width('100%')

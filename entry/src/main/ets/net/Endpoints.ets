@@ -3,6 +3,7 @@ export class Endpoints {
   static readonly DEVICE_FP: string = 'https://public-data-api.mihoyo.com/device-fp/api/getFp';
   static readonly GAME_RECORD_CARD: string =
     'https://api-takumi-record.mihoyo.com/game_record/card/api/getGameRecordCard';
+  static readonly BBS_USER_INFO: string = 'https://bbs-api.miyoushe.com/user/wapi/getUserFullInfo';
   static readonly WEB_HOME: string = 'https://bbs-api-static.miyoushe.com/apihub/wapi/webHome';
 
   // x-rpc 头基线：与 DS salt 绑定的版本号，提取 salt 时必须是同一版本。
