@@ -1,14 +1,23 @@
 // 官方网页登录：用户在米哈游通行证官方页面自行登录，应用仅捕获 Cookie 会话，不接触账密。
+// 顶栏避让状态栏（expandSafeArea + safeTopPx 内边距），Web 区底部避让手势条。
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { Session } from '../auth/Session';
+import { GlassTheme } from '../view/GlassTheme';
 
 @Entry
 @Component
 struct Login {
   @State status: string = '请在下方米哈游通行证官方页面完成登录，检测到会话后会自动保存。';
   @State done: boolean = false;
+  @StorageLink('glassLevel') glassLevel: number = 2;
+  @StorageLink('safeTopPx') safeTopPx: number = 0;
+  @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   private controller: webview.WebviewController = new webview.WebviewController();
+
+  private vp(px: number): number {
+    return this.getUIContext().px2vp(px);
+  }
 
   private checkLogin(): void {
     if (this.done) {
@@ -64,7 +73,11 @@ struct Login {
           })
       }
       .width('100%')
-      .padding(12)
+      .height(56 + this.vp(this.safeTopPx))
+      .padding({ top: this.vp(this.safeTopPx), left: 12, right: 12 })
+      .backgroundColor(GlassTheme.barColor(this.glassLevel))
+      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
       Web({ src: 'https://user.mihoyo.com/#/login?back_route=%252Fhome%252Faccount-overview', controller: this.controller })
         .javaScriptAccess(true)
@@ -79,7 +92,8 @@ struct Login {
         .fontSize(12)
         .fontColor(this.done ? '#067647' : '#667085')
         .width('100%')
-        .padding(10)
+        .padding({ left: 12, right: 12, top: 10, bottom: 10 + this.vp(this.safeBottomPx) })
+        .backgroundColor('#F7F8FA')
     }
     .width('100%')
     .height('100%')

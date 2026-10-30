@@ -42,7 +42,7 @@ struct AppShell {
         .height(56 + this.vp(this.safeTopPx))
         .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
-        .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
+        .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
         Stack() {
@@ -58,7 +58,7 @@ struct AppShell {
         }
         .layoutWeight(1)
         .width('100%')
-        .padding({ bottom: 84 + this.vp(this.safeBottomPx) })
+        .padding({ bottom: 96 + this.vp(this.safeBottomPx) })
       }
       .width('100%')
       .height('100%')
@@ -73,21 +73,21 @@ struct AppShell {
               .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
           }
           .layoutWeight(1)
-          .padding({ top: 11, bottom: 11 })
+          .padding({ top: 14, bottom: 14 })
           .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000')
-          .borderRadius(22)
+          .borderRadius(24)
           .onClick(() => {
             this.currentTab = idx;
           })
         })
       }
-      .margin({ left: 20, right: 20, bottom: 10 + this.vp(this.safeBottomPx) })
-      .padding(5)
+      .margin({ left: 16, right: 16, bottom: 8 + this.vp(this.safeBottomPx) })
+      .padding(8)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
-      .border(this.glassLevel === 3 ? { width: 0.5, color: '#40FFFFFF' } : { width: 0, color: '#00000000' })
-      .borderRadius(28)
-      .shadow({ radius: 16, color: '#1A000000', offsetY: 4 })
+      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
+      .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
+      .borderRadius(32)
+      .shadow({ radius: 24, color: '#26000000', offsetY: 8 })
     }
     .width('100%')
     .height('100%')

@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.miyou.app",
     "vendor": "miyou",
-    "versionCode": 1000100,
-    "versionName": "0.5.0",
+    "versionCode": 1000101,
+    "versionName": "0.5.1",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }
