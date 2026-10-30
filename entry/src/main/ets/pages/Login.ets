@@ -1,8 +1,7 @@
 // 官方网页登录 + Cookie 诊断版：
 // - 登录入口用 user.mihoyo.com（直达登录页，体验好）
-// - 「检测」对 7 个候选域逐个读取 Cookie，仅列键名不列值；并用 JS document.cookie 对照，
-//   区分「HttpOnly Cookie（原生可读/JS不可读）」与「未落 Cookie（两侧皆无）」两种情形。
-// - 报告可长按复制，便于回传排查。
+// - 「检测」对 7 个候选域逐个读取 Cookie，仅列键名不列值；并用 JS document.cookie 对照。
+// - 判定以 v2 键为准（2026 起通行证登录态主体是 ltoken_v2/ltuid_v2 等，v1 为空值占位）。
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { Session } from '../auth/Session';
@@ -67,8 +66,8 @@ struct Login {
 
   private trySave(): boolean {
     const combined = this.collect();
-    const hasToken: boolean = /(ltoken|login_ticket|stoken)=/.test(combined);
-    const hasUid: boolean = /(ltuid|stuid|account_id|login_uid)=\d+/.test(combined);
+    const hasToken: boolean = /(ltoken_v2|cookie_token_v2|login_ticket|stoken|ltoken)=[^;]+/.test(combined);
+    const hasUid: boolean = /(?:stuid|ltuid_v2|account_id_v2|ltuid|account_id|login_uid)=\d+/.test(combined);
     if (hasToken && hasUid) {
       Session.save(combined);
       return true;
