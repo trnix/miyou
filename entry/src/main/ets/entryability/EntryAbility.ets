@@ -1,6 +1,6 @@
 import { UIAbility } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
-import { AccountStore } from '../auth/AccountStore';
+import { Session } from '../auth/Session';
 import { DeviceIdentity } from '../auth/DeviceIdentity';
 import { GlassTheme } from '../view/GlassTheme';
 
@@ -16,7 +16,7 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate('safeTopPx', 0);
       AppStorage.setOrCreate('safeBottomPx', 0);
     }
-    AccountStore.hydrate(this.context);
+    Session.hydrate(this.context);
     DeviceIdentity.hydrate(this.context);
     GlassTheme.hydrate(this.context);
     windowStage.loadContent('pages/AppShell', (err) => {

@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { AccountStore } from '../auth/AccountStore';
+import { Session } from '../auth/Session';
 import { DeviceIdentity } from '../auth/DeviceIdentity';
 import { MysHttp } from '../net/MysHttp';
 import { Endpoints } from '../net/Endpoints';
@@ -19,7 +19,7 @@ export struct MineTab {
     this.probeResult = '探活中…';
     try {
       await DeviceIdentity.ensureFp();
-      const uid = AccountStore.stuid();
+      const uid = Session.stuid();
       const url = `${Endpoints.GAME_RECORD_CARD}?uid=${uid}`;
       const raw = await MysHttp.getObject(url, true);
       const result: RecordCardResult = GameRecord.parseRoles(raw);
@@ -56,7 +56,7 @@ export struct MineTab {
             if (this.cookie.length > 0) {
               Button('退出登录')
                 .backgroundColor('#F04438')
-                .onClick(() => AccountStore.clear())
+                .onClick(() => Session.clear())
             }
           }
         }

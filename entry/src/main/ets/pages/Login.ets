@@ -1,7 +1,7 @@
 // 官方网页登录：用户在米哈游通行证官方页面自行登录，应用仅捕获 Cookie 会话，不接触账密。
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
-import { AccountStore } from '../auth/AccountStore';
+import { Session } from '../auth/Session';
 
 @Entry
 @Component
@@ -35,7 +35,7 @@ struct Login {
       const hasToken: boolean = /(ltoken|login_ticket|stoken)=/.test(combined);
       const hasUid: boolean = /(ltuid|stuid|account_id|login_uid)=\d+/.test(combined);
       if (hasToken && hasUid) {
-        AccountStore.save(combined);
+        Session.save(combined);
         this.done = true;
         this.status = '登录成功，会话已保存到本机。';
       } else {
