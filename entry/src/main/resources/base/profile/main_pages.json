@@ -1,9 +1,0 @@
-{
-  "src": [
-    "pages/AppShell",
-    "pages/Index",
-    "pages/PostDetail",
-    "pages/ToolWeb",
-    "pages/Login"
-  ]
-}
