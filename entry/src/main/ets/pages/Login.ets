@@ -113,7 +113,7 @@ struct Login {
       lines.push('× 关键会话键（token 类 + uid 类）未找到');
     }
     this.status = lines.join('\n');
-    this.controller.evaluateJavaScript('document.cookie').then((jsCookie: string) => {
+    this.controller.runJavaScript('document.cookie').then((jsCookie: string) => {
       const jsKeys = this.cookieKeys(jsCookie);
       const extra = jsKeys.length > 0 ? jsKeys.join(', ') : '无';
       this.status = `${lines.join('\n')}\nJS可见(${jsKeys.length}): ${extra}`;
