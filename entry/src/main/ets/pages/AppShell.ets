@@ -81,7 +81,7 @@ struct AppShell {
           })
         })
       }
-      .margin({ left: 16, right: 16, bottom: 8 + this.vp(this.safeBottomPx) })
+      .margin({ left: 16, right: 16, bottom: 12 + this.vp(this.safeBottomPx) })
       .padding(8)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
       .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))

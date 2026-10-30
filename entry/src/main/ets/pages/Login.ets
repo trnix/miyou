@@ -1,5 +1,6 @@
-// 官方网页登录：用户在米哈游通行证官方页面自行登录，应用仅捕获 Cookie 会话，不接触账密。
-// 顶栏避让状态栏（expandSafeArea + safeTopPx 内边距），Web 区底部避让手势条。
+// 官方网页登录：用户在米游社官方页面自行登录（内部会走通行证流程），应用仅捕获 Cookie 会话。
+// 注意：user.mihoyo.com 的通行证 SPA 登录态存 localStorage 不落 Cookie，检测不到；
+// www.miyoushe.com 登录后会话落成真实 Cookie（0.4.0 已验证），故以其为登录入口。
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { Session } from '../auth/Session';
@@ -8,7 +9,7 @@ import { GlassTheme } from '../view/GlassTheme';
 @Entry
 @Component
 struct Login {
-  @State status: string = '请在下方米哈游通行证官方页面完成登录，检测到会话后会自动保存。';
+  @State status: string = '请在下方米游社官方页面完成登录，检测到会话后会自动保存。';
   @State done: boolean = false;
   @StorageLink('glassLevel') glassLevel: number = 2;
   @StorageLink('safeTopPx') safeTopPx: number = 0;
@@ -23,10 +24,11 @@ struct Login {
     if (this.done) {
       return;
     }
+    this.status = '检测中…';
     try {
       const domains: string[] = [
-        'https://user.mihoyo.com',
         'https://www.miyoushe.com',
+        'https://user.mihoyo.com',
         'https://passport-api.mihoyo.com'
       ];
       const parts: string[] = [];
@@ -79,7 +81,7 @@ struct Login {
       .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
-      Web({ src: 'https://user.mihoyo.com/#/login?back_route=%252Fhome%252Faccount-overview', controller: this.controller })
+      Web({ src: 'https://www.miyoushe.com/', controller: this.controller })
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .fileAccess(false)
