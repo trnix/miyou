@@ -42,7 +42,7 @@ struct AppShell {
         .height(56 + this.vp(this.safeTopPx))
         .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
-        .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
+        .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
         Stack() {
@@ -84,7 +84,7 @@ struct AppShell {
       .margin({ left: 16, right: 16, bottom: 8 + this.vp(this.safeBottomPx) })
       .padding(8)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
+      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
       .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
       .borderRadius(32)
       .shadow({ radius: 24, color: '#26000000', offsetY: 8 })

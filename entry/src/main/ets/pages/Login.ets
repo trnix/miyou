@@ -76,7 +76,7 @@ struct Login {
       .height(56 + this.vp(this.safeTopPx))
       .padding({ top: this.vp(this.safeTopPx), left: 12, right: 12 })
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel), { blurOff: BlurOff.WITHIN_COMPONENT })
+      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
       Web({ src: 'https://user.mihoyo.com/#/login?back_route=%252Fhome%252Faccount-overview', controller: this.controller })

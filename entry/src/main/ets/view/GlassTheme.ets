@@ -1,7 +1,7 @@
 // 光感玻璃主题：档位状态（AppStorage + preferences 持久化）与视觉参数映射。
 // 档位：0 关闭 / 1 弱 / 2 中（默认）/ 3 强。对应蓝图第 3 节。
-// 实现注意：用 COMPONENT_* 系 BlurStyle 并在调用处显式 { blurOff: BlurOff.WITHIN_COMPONENT }，
-// 否则组件内容默认不参与模糊，纯色背景上光感不可见（0.5.0 实测教训）。
+// 实现注意：API 26 的 BackgroundBlurStyleOptions 没有 blurOff 属性（旧 API 遗留概念），
+// 模糊默认跟随窗口激活状态渲染，无需也不许额外传参（0.5.1 编译报错实证）。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 
@@ -58,9 +58,9 @@ export class GlassTheme {
       case 0:
         return '#FFF7F8FA';
       case 1:
-        return '#C4F7F8FA';
+        return '#DBF7F8FA';
       case 3:
-        return '#59F7F8FA';
+        return '#4DF7F8FA';
       default:
         return '#8CF7F8FA';
     }
