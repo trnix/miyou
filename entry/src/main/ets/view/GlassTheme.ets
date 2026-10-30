@@ -7,15 +7,19 @@ const STORE: string = 'miyou_settings';
 const KEY_GLASS: string = 'glassLevel';
 
 export class GlassTheme {
+  private static ctx: common.UIAbilityContext | null = null;
+
   static level(): number {
     return AppStorage.get<number>(KEY_GLASS) ?? 2;
   }
 
   static setLevel(level: number): void {
     AppStorage.setOrCreate(KEY_GLASS, level);
+    if (GlassTheme.ctx === null) {
+      return;
+    }
     try {
-      const context = getContext() as common.UIAbilityContext;
-      const store = preferences.getPreferencesSync(context, { name: STORE });
+      const store = preferences.getPreferencesSync(GlassTheme.ctx, { name: STORE });
       store.putSync(KEY_GLASS, level);
       store.flush();
     } catch (e) {
@@ -24,6 +28,7 @@ export class GlassTheme {
   }
 
   static hydrate(context: common.UIAbilityContext): void {
+    GlassTheme.ctx = context;
     try {
       const store = preferences.getPreferencesSync(context, { name: STORE });
       const v = store.getSync(KEY_GLASS, 2) as number;

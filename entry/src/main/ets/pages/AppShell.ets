@@ -10,6 +10,10 @@ struct AppShell {
   @State currentTab: number = 0;
   private tabTitles: string[] = ['首页', '社区', '消息', '我的'];
 
+  private vp(px: number): number {
+    return this.getUIContext().px2vp(px);
+  }
+
   @Builder
   PlaceholderTab(title: string, desc: string) {
     Column({ space: 10 }) {
@@ -35,8 +39,8 @@ struct AppShell {
           Text(this.tabTitles[this.currentTab]).fontSize(14).fontColor('#667085')
         }
         .width('100%')
-        .height(56 + px2vp(this.safeTopPx))
-        .padding({ top: px2vp(this.safeTopPx), left: 16, right: 16 })
+        .height(56 + this.vp(this.safeTopPx))
+        .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
         .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
@@ -54,7 +58,7 @@ struct AppShell {
         }
         .layoutWeight(1)
         .width('100%')
-        .padding({ bottom: 84 + px2vp(this.safeBottomPx) })
+        .padding({ bottom: 84 + this.vp(this.safeBottomPx) })
       }
       .width('100%')
       .height('100%')
@@ -77,7 +81,7 @@ struct AppShell {
           })
         })
       }
-      .margin({ left: 20, right: 20, bottom: 10 + px2vp(this.safeBottomPx) })
+      .margin({ left: 20, right: 20, bottom: 10 + this.vp(this.safeBottomPx) })
       .padding(5)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
       .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))

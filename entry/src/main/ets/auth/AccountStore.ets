@@ -7,6 +7,8 @@ const STORE: string = 'miyou_auth';
 const KEY_COOKIE: string = 'cookie';
 
 export class AccountStore {
+  private static ctx: common.UIAbilityContext | null = null;
+
   static cookie(): string {
     return AppStorage.get<string>(KEY_COOKIE) ?? '';
   }
@@ -21,6 +23,7 @@ export class AccountStore {
   }
 
   static hydrate(context: common.UIAbilityContext): void {
+    AccountStore.ctx = context;
     try {
       const store = preferences.getPreferencesSync(context, { name: STORE });
       const value = store.getSync(KEY_COOKIE, '') as string;
@@ -36,14 +39,16 @@ export class AccountStore {
   }
 
   static clear(): void {
-    AppStorage.setOrCreate(KEY_COOKIE, '');
+    AccountStore.setOrCreate(KEY_COOKIE, '');
     AccountStore.persist('');
   }
 
   private static persist(value: string): void {
+    if (AccountStore.ctx === null) {
+      return;
+    }
     try {
-      const context = getContext() as common.UIAbilityContext;
-      const store = preferences.getPreferencesSync(context, { name: STORE });
+      const store = preferences.getPreferencesSync(AccountStore.ctx, { name: STORE });
       store.putSync(KEY_COOKIE, value);
       store.flush();
     } catch (e) {
