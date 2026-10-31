@@ -71,8 +71,8 @@ struct AppShell {
         .width('100%')
         .height(this.topBar + this.vp(this.safeTopPx))
         .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
-        .systemMaterial(GlassTheme.material(this.glassLevel))
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
+        .systemMaterial(GlassTheme.material(this.glassLevel))
         .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
       }
       .width('100%')

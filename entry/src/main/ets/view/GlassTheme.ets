@@ -1,10 +1,13 @@
 // 光感玻璃主题：档位状态与官方沉浸光感材质生成。
 // 档位：0 关闭 / 1 弱 / 2 中（默认）/ 3 强。
-// 权威依据（harmonyos 官方 API 参考 arkts-apis-uimaterial）：
+// 权威依据（harmonyos 官方 API 参考 arkts-apis-uimaterial / ts-universal-attributes-image-effect）：
 //   ImmersiveStyle 五档 = ULTRA_THIN / THIN / REGULAR / THICK / ULTRA_THICK；
 //   普通 ArkUI 组件挂 .systemMaterial(new uiMaterial.ImmersiveMaterial(...))；
 //   systemMaterial 不得与 backgroundBlurStyle 叠加（官方约束文档反例）；
-//   materialColor 为纯不透明色时会遮住材质效果——利用它实现「关闭」档。
+//   systemMaterial 与 backgroundColor/border 同设时「后设置的生效」——因此调用方必须
+//   把 backgroundColor 写在 systemMaterial 之前、border 等装饰写在其后，
+//   否则后设的纯色会覆盖材质的背景效果（顶栏曾因此磨砂消失，已修复）。
+//   materialColor 为纯不透明色时会遮住材质层滤镜——利用它实现「关闭」档。
 //   能力探测沿用官方最佳实践：hdsMaterial.getSystemMaterialTypes() 查询可用材质。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';

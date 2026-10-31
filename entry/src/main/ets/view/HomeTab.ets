@@ -373,8 +373,8 @@ export struct HomeTab {
       .alignItems(VerticalAlign.Top)
       .padding({ left: 4, right: 4 })
       .margin({ top: this.vp(this.safeTopPx) + this.titleBar })
-      .systemMaterial(GlassTheme.material(this.glassLevel))
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
+      .systemMaterial(GlassTheme.material(this.glassLevel))
       .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
     }
     .width('100%')
