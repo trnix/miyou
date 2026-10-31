@@ -1,8 +1,4 @@
-// 官方网页登录 + Cookie 诊断版：
-// - 登录入口用 user.mihoyo.com（直达登录页，体验好）
-// - 「检测」对 7 个候选域逐个读取 Cookie，仅列键名不列值；并用 JS document.cookie 对照。
-// - 判定以 v2 键为准（2026 起通行证登录态主体是 ltoken_v2/ltuid_v2 等，v1 为空值占位）。
-import { router } from '@kit.ArkUI';
+import { promptAction } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { Session } from '../auth/Session';
 import { GlassTheme } from '../view/GlassTheme';
@@ -143,8 +139,9 @@ struct Login {
       .height(56 + this.vp(this.safeTopPx))
       .padding({ top: this.vp(this.safeTopPx), left: 12, right: 12 })
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
+      .systemMaterial(GlassTheme.material(this.glassLevel))
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
 
       Web({ src: 'https://user.mihoyo.com/#/login?back_route=%252Fhome%252Faccount-overview', controller: this.controller })
         .javaScriptAccess(true)

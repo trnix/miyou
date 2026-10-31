@@ -1,6 +1,7 @@
 import { GlassTheme } from '../view/GlassTheme';
 import { MineTab } from '../view/MineTab';
 import { HomeTab } from '../view/HomeTab';
+import { uiMaterial } from '@kit.ArkUI';
 
 @Entry
 @Component
@@ -43,7 +44,7 @@ struct AppShell {
         .height(56 + this.vp(this.safeTopPx))
         .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
-        .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
+        .systemMaterial(GlassTheme.material(this.glassLevel))
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
 
@@ -83,11 +84,10 @@ struct AppShell {
           })
         })
       }
-      // 沉浸修正：胶囊贴近系统底部安全区，不再叠加固定外边距，消除小白条上方的留白。
       .margin({ left: 16, right: 16, bottom: this.vp(this.safeBottomPx) })
       .padding(8)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
+      .systemMaterial(GlassTheme.material(this.glassLevel))
       .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
       .borderRadius(32)
       .shadow({ radius: 24, color: '#26000000', offsetY: 8 })

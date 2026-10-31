@@ -1,16 +1,21 @@
-// 光感玻璃主题：档位状态（AppStorage + preferences 持久化）与视觉参数映射。
-// 档位：0 关闭 / 1 弱 / 2 中（默认）/ 3 强。对应蓝图第 3 节。
-// 机制（HarmonyOS 7 / API 26 官方文档）：backgroundBlurStyle 的 Material 系预设由引擎自带
-// 色调叠加与边缘高光；背景色只做极轻的色调（10–26%），不遮住引擎材质——高不透明白底
-// 会把玻璃效果盖住（0.5.x 实测教训）。
+// 光感玻璃主题：档位状态与官方沉浸光感材质生成。
+// 0=关闭 / 1=弱 / 2=中 / 3=强；对普通 ArkUI 组件（Row/Column）用 uiMaterial.ImmersiveMaterial，
+// 枚举：ImmersiveStyle + ImmersiveOptions；能力检查失败或未支持时不加材质、自动降级。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
+import { uiMaterial } from '@kit.ArkUI';
+import { hdsMaterial } from '@kit.UIDesignKit';
 
 const STORE: string = 'miyou_settings';
 const KEY_GLASS: string = 'glassLevel';
 
+interface GateInfo {
+  supported: boolean;
+}
+
 export class GlassTheme {
   private static ctx: common.UIAbilityContext | null = null;
+  private static supportedCache: GateInfo | null = null;
 
   static level(): number {
     const stored = AppStorage.get<number>(KEY_GLASS);
@@ -40,34 +45,49 @@ export class GlassTheme {
     } catch (e) {
       AppStorage.setOrCreate(KEY_GLASS, 2);
     }
+    // 异步初始化能力检查，不阻塞页面
+    setTimeout(() => GlassTheme.probeSupport(), 0);
   }
 
-  static blur(level: number): BlurStyle {
-    switch (level) {
-      case 1:
-        return BlurStyle.ThinMaterial;
-      case 3:
-        return BlurStyle.ThickMaterial;
-      default:
-        return BlurStyle.RegularMaterial;
+  private static probeSupport(): void {
+    try {
+      const types = hdsMaterial.getSystemMaterialTypes();
+      GlassTheme.supportedCache = { supported: types.indexOf(hdsMaterial.MaterialType.IMMERSIVE) >= 0 };
+    } catch (e) {
+      GlassTheme.supportedCache = { supported: false };
     }
   }
 
-  // 档位 0 为不透明实色（等效关闭光感）；1–3 档只做轻色调，由引擎材质主导。
+  // 普通 ArkUI 组件用 systemMaterial；未支持/未初始化时返回 empty（不加材质）
+  static material(level: number): uiMaterial.Material {
+    if (level === 0 || !GlassTheme.supportedCache?.supported) {
+      return uiMaterial.Material.empty;
+    }
+    let style: uiMaterial.ImmersiveStyle;
+    switch (level) {
+      case 1:
+        style = uiMaterial.ImmersiveStyle.SMOOTH;
+        break;
+      case 2:
+        style = uiMaterial.ImmersiveStyle.GENTLE;
+        break;
+      case 3:
+        style = uiMaterial.ImmersiveStyle.EXQUISITE;
+        break;
+      default:
+        style = uiMaterial.ImmersiveStyle.GENTLE;
+    }
+    return new uiMaterial.ImmersiveMaterial({ style, interactive: true });
+  }
+
+  // 背景透明度：材质自带色调，背景只做协调；Material 已接管透明度，不需要单独调低。
   static barColor(level: number): string {
-    switch (level) {
-      case 0:
-        return '#FFF7F8FA';
-      case 1:
-        return '#40F7F8FA';
-      case 3:
-        return '#1AF7F8FA';
-      default:
-        return '#2BF7F8FA';
+    if (level === 0) {
+      return '#FFF7F8FA';
     }
+    return '#26F7F8FA';
   }
 
-  // 玻璃高光描边：档位 0 用深灰细线，其余用半透明白（玻璃边缘反光）。
   static edgeColor(level: number): string {
     return level === 0 ? '#0D000000' : '#2EFFFFFF';
   }
