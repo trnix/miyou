@@ -59,8 +59,8 @@ struct AppShell {
         }
         .layoutWeight(1)
         .width('100%')
-        // 修复白色遮挡：主内容底部只保留悬浮底栏实际高度与必要余量，避免多余留白。实测配图见 screenshot_20261031_133532。
-        .padding({ bottom: 80 + this.vp(this.safeBottomPx) })
+        // 让信息流全屏覆盖：底栏上下不预留内容留白，底栏胶囊悬浮于内容之上。若底部遮挡阅读，再用内容局部 inset 或胶囊局部收进来调整。
+        .padding({ bottom: 0 })
       }
       .width('100%')
       .height('100%')
