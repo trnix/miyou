@@ -85,6 +85,11 @@ export class GlassTheme {
     });
   }
 
+  // 栏背景：材质开启时色调主要由材质承担，背景只留极轻底色保持层次。
+  static barColor(level: number): string {
+    return level === 0 ? '#FFF7F8FA' : '#26F7F8FA';
+  }
+
   static edgeColor(level: number): string {
     return level === 0 ? '#0D000000' : '#2EFFFFFF';
   }
