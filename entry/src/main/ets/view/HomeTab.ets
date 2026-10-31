@@ -1,6 +1,7 @@
 import { promptAction } from '@kit.ArkUI';
 import { FeedApi } from '../net/FeedApi';
 import { FeedPost, HomeResult, FeedModels, formatCount } from '../model/FeedModels';
+import { GlassTheme } from './GlassTheme';
 
 interface Channel {
   name: string;
@@ -24,8 +25,26 @@ export struct HomeTab {
   @State noMore: boolean = false;
   @State errorText: string = '';
   @State firstLoaded: boolean = false;
+  @StorageLink('glassLevel') glassLevel: number = 2;
+  @StorageLink('safeTopPx') safeTopPx: number = 0;
+  @StorageLink('safeBottomPx') safeBottomPx: number = 0;
+  private readonly titleBar: number = 56;
+  private readonly channelBar: number = 46;
+  private readonly bottomPill: number = 64;
   private page: number = 1;
   private requestSeq: number = 0;
+
+  private vp(px: number): number {
+    return this.getUIContext().px2vp(px);
+  }
+
+  private topOffset(): number {
+    return this.vp(this.safeTopPx) + this.titleBar + this.channelBar;
+  }
+
+  private bottomOffset(): number {
+    return this.vp(this.safeBottomPx) + this.bottomPill + 8;
+  }
 
   aboutToAppear(): void {
     if (!this.firstLoaded) {
@@ -282,7 +301,56 @@ export struct HomeTab {
   }
 
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      if (this.errorText !== '' && this.posts.length === 0) {
+        Column({ space: 12 }) {
+          Text(this.errorText).fontSize(14).fontColor('#667085')
+          Button('重试').onClick(() => {
+            this.reload();
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else if (!this.firstLoaded && this.loading) {
+        Column() {
+          Text('加载中…').fontSize(14).fontColor('#98A2B3')
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else if (this.posts.length === 0 && this.firstLoaded) {
+        Column() {
+          Text('暂无内容').fontSize(14).fontColor('#98A2B3')
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else {
+        Refresh({ refreshing: this.refreshing }) {
+          List({ space: 12 }) {
+            ForEach(this.posts, (post: FeedPost) => {
+              ListItem() {
+                this.PostCard(post)
+              }
+            }, (post: FeedPost) => post.postId)
+            ListItem() {
+              this.FooterNote()
+            }
+          }
+          .width('100%')
+          .height('100%')
+          .padding({ left: 12, right: 12 })
+          .contentStartOffset(this.topOffset())
+          .contentEndOffset(this.bottomOffset())
+          .onReachEnd(() => {
+            this.loadMore();
+          })
+        }
+        .width('100%')
+        .height('100%')
+      }
+
       Row({ space: 4 }) {
         ForEach(this.channelList, (ch: Channel, idx: number) => {
           Column({ space: 4 }) {
@@ -301,53 +369,13 @@ export struct HomeTab {
         })
       }
       .width('100%')
+      .height(this.channelBar)
+      .alignItems(VerticalAlign.Top)
       .padding({ left: 4, right: 4 })
-
-      if (this.errorText !== '' && this.posts.length === 0) {
-        Column({ space: 12 }) {
-          Text(this.errorText).fontSize(14).fontColor('#667085')
-          Button('重试').onClick(() => {
-            this.reload();
-          })
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else if (!this.firstLoaded && this.loading) {
-        Column() {
-          Text('加载中…').fontSize(14).fontColor('#98A2B3')
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else if (this.posts.length === 0 && this.firstLoaded) {
-        Column() {
-          Text('暂无内容').fontSize(14).fontColor('#98A2B3')
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        Refresh({ refreshing: this.refreshing }) {
-          List({ space: 12 }) {
-            ForEach(this.posts, (post: FeedPost) => {
-              ListItem() {
-                this.PostCard(post)
-              }
-            }, (post: FeedPost) => post.postId)
-            ListItem() {
-              this.FooterNote()
-            }
-          }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 12, bottom: 12 })
-          .onReachEnd(() => {
-            this.loadMore();
-          })
-        }
-        .layoutWeight(1)
-        .width('100%')
-      }
+      .margin({ top: this.vp(this.safeTopPx) + this.titleBar })
+      .systemMaterial(GlassTheme.material(this.glassLevel))
+      .backgroundColor(GlassTheme.barColor(this.glassLevel))
+      .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
     }
     .width('100%')
     .height('100%')
