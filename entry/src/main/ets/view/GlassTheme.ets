@@ -1,7 +1,8 @@
 // 光感玻璃主题：档位状态（AppStorage + preferences 持久化）与视觉参数映射。
 // 档位：0 关闭 / 1 弱 / 2 中（默认）/ 3 强。对应蓝图第 3 节。
-// 实现注意：API 26 的 BackgroundBlurStyleOptions 没有 blurOff 属性（旧 API 遗留概念），
-// 模糊默认跟随窗口激活状态渲染，无需也不许额外传参（0.5.1 编译报错实证）。
+// 机制（HarmonyOS 7 / API 26 官方文档）：backgroundBlurStyle 的 Material 系预设由引擎自带
+// 色调叠加与边缘高光；背景色只做极轻的色调（10–26%），不遮住引擎材质——高不透明白底
+// 会把玻璃效果盖住（0.5.x 实测教训）。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 
@@ -44,25 +45,25 @@ export class GlassTheme {
   static blur(level: number): BlurStyle {
     switch (level) {
       case 1:
-        return BlurStyle.COMPONENT_THIN;
+        return BlurStyle.ThinMaterial;
       case 3:
-        return BlurStyle.COMPONENT_THICK;
+        return BlurStyle.ThickMaterial;
       default:
-        return BlurStyle.COMPONENT_REGULAR;
+        return BlurStyle.RegularMaterial;
     }
   }
 
-  // 档位 0 为不透明实色（等效关闭光感）；1–3 档透明度递减、磨砂感递增。
+  // 档位 0 为不透明实色（等效关闭光感）；1–3 档只做轻色调，由引擎材质主导。
   static barColor(level: number): string {
     switch (level) {
       case 0:
         return '#FFF7F8FA';
       case 1:
-        return '#DBF7F8FA';
+        return '#40F7F8FA';
       case 3:
-        return '#4DF7F8FA';
+        return '#1AF7F8FA';
       default:
-        return '#8CF7F8FA';
+        return '#2BF7F8FA';
     }
   }
 
