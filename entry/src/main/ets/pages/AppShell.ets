@@ -77,6 +77,7 @@ struct AppShell {
       }
       .width('100%')
       .height('100%')
+      .hitTestBehavior(HitTestMode.None)
 
       Row() {
         ForEach(this.tabTitles, (title: string, idx: number) => {
