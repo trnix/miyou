@@ -1,5 +1,6 @@
 import { GlassTheme } from '../view/GlassTheme';
 import { MineTab } from '../view/MineTab';
+import { HomeTab } from '../view/HomeTab';
 
 @Entry
 @Component
@@ -47,11 +48,11 @@ struct AppShell {
 
         Stack() {
           if (this.currentTab === 0) {
-            this.PlaceholderTab('首页', '推荐与游戏频道信息流将在 M1 里程碑接入\n（蓝图 P0：getNewsFeed / webHome）')
+            HomeTab()
           } else if (this.currentTab === 1) {
             this.PlaceholderTab('社区', '版区浏览将在后续里程碑接入\n（官方资讯 / 攻略 / 同人 / 酒馆）')
           } else if (this.currentTab === 2) {
-            this.PlaceholderTab('消息', '消息中心为只读拉取，将在 M3 接入\n（需登录态）')
+            this.PlaceholderTab('消息', '消息中心为只读拉取，将在 R3 接入\n（需登录态）')
           } else {
             MineTab()
           }

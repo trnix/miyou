@@ -137,7 +137,7 @@ export struct MineTab {
         .backgroundColor('#FFFFFF')
         .borderRadius(16)
 
-        Text('米柚 0.5.1 · 非官方米游社客户端 · 只读应用')
+        Text('米柚 0.6.0 · 非官方米游社客户端 · 只读应用')
           .fontSize(11)
           .fontColor('#98A2B3')
           .width('100%')
