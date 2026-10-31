@@ -57,7 +57,7 @@ export default class EntryAbility extends UIAbility {
     });
   }
 
-  onWindowStageDestroy(windowStage: window.WindowStage): void {
+  onWindowStageDestroy(): void {
     if (this.mainWindow !== null) {
       try {
         this.mainWindow.off('avoidAreaChange');
