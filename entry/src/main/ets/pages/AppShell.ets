@@ -45,6 +45,7 @@ struct AppShell {
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
         .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+        .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
 
         Stack() {
           if (this.currentTab === 0) {
@@ -59,7 +60,6 @@ struct AppShell {
         }
         .layoutWeight(1)
         .width('100%')
-        // 让信息流全屏覆盖：底栏上下不预留内容留白，底栏胶囊悬浮于内容之上。若底部遮挡阅读，再用内容局部 inset 或胶囊局部收进来调整。
         .padding({ bottom: 0 })
       }
       .width('100%')
@@ -83,7 +83,8 @@ struct AppShell {
           })
         })
       }
-      .margin({ left: 16, right: 16, bottom: 12 + this.vp(this.safeBottomPx) })
+      // 沉浸修正：胶囊贴近系统底部安全区，不再叠加固定外边距，消除小白条上方的留白。
+      .margin({ left: 16, right: 16, bottom: this.vp(this.safeBottomPx) })
       .padding(8)
       .backgroundColor(GlassTheme.barColor(this.glassLevel))
       .backgroundBlurStyle(GlassTheme.blur(this.glassLevel))

@@ -5,16 +5,18 @@ import { FeedPost, HomeResult, FeedModels, formatCount } from '../model/FeedMode
 interface Channel {
   name: string;
   gids: number;
+  gameName: string;
   color: string;
 }
 
 @Component
 export struct HomeTab {
+  // gids 按 handover 记录与社区公认映射；gameName 用于过滤跨游戏置顶帖。
   private channelList: Channel[] = [
-    { name: '原神', gids: 2, color: '#1570EF' },
-    { name: '绝区零', gids: 8, color: '#E66900' },
-    { name: '星穹铁道', gids: 6, color: '#6B5CE7' },
-    { name: '崩坏3', gids: 3, color: '#00A3A3' }
+    { name: '原神', gids: 2, gameName: '原神', color: '#1570EF' },
+    { name: '绝区零', gids: 8, gameName: '绝区零', color: '#E66900' },
+    { name: '星穹铁道', gids: 6, gameName: '星穹铁道', color: '#6B5CE7' },
+    { name: '崩坏3', gids: 3, gameName: '崩坏3', color: '#00A3A3' }
   ];
   @State currentChannel: number = 0;
   @State posts: FeedPost[] = [];
@@ -43,6 +45,23 @@ export struct HomeTab {
     this.reload();
   }
 
+  // 剔除置顶帖里混入的跨游戏官方公告：forumName 不含当前游戏名的置顶项降权为普通帖。
+  private sanitize(result: HomeResult, gameName: string): FeedPost[] {
+    const list: FeedPost[] = [];
+    result.posts.forEach((p: FeedPost) => {
+      if (p.isTop && p.forumName !== '' && p.forumName.indexOf(gameName) === -1) {
+        const ordinary = p;
+        ordinary.isTop = false;
+        list.push(ordinary);
+      } else {
+        list.push(p);
+      }
+    });
+    const tops = list.filter((p: FeedPost) => p.isTop);
+    const others = list.filter((p: FeedPost) => !p.isTop);
+    return tops.concat(others);
+  }
+
   private async reload(): Promise<void> {
     const seq = ++this.requestSeq;
     this.page = 1;
@@ -51,13 +70,14 @@ export struct HomeTab {
     this.refreshing = this.firstLoaded;
     this.loading = true;
     try {
-      const raw = await FeedApi.fetchHome(this.channelList[this.currentChannel].gids, 1, 20);
+      const channel = this.channelList[this.currentChannel];
+      const raw = await FeedApi.fetchHome(channel.gids, 1, 20);
       if (seq !== this.requestSeq) {
         return;
       }
       const result: HomeResult = FeedModels.parseHome(raw);
       if (result.retcode === 0) {
-        this.posts = result.posts;
+        this.posts = this.sanitize(result, channel.gameName);
         this.firstLoaded = true;
         if (result.posts.length < 20) {
           this.noMore = true;
@@ -86,7 +106,8 @@ export struct HomeTab {
     this.loadingMore = true;
     const next = this.page + 1;
     try {
-      const raw = await FeedApi.fetchHome(this.channelList[this.currentChannel].gids, next, 20);
+      const channel = this.channelList[this.currentChannel];
+      const raw = await FeedApi.fetchHome(channel.gids, next, 20);
       if (seq !== this.requestSeq) {
         return;
       }
@@ -99,7 +120,7 @@ export struct HomeTab {
           const merged = this.posts.slice();
           const seen = new Set<string>();
           merged.forEach((p: FeedPost) => seen.add(p.postId));
-          result.posts.forEach((p: FeedPost) => {
+          this.sanitize(result, channel.gameName).forEach((p: FeedPost) => {
             if (!seen.has(p.postId)) {
               seen.add(p.postId);
               merged.push(p);
