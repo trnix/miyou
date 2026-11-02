@@ -85,8 +85,28 @@ struct PostDetailPage {
     }
   }
 
+  @Builder
+  TopBar() {
+    Row({ space: 12 }) {
+      Text('←').fontSize(22).fontColor('#101828')
+        .onClick(() => router.back())
+      Text('帖子')
+        .fontSize(17)
+        .fontWeight(FontWeight.Medium)
+        .layoutWeight(1)
+        .textAlign(TextAlign.Center)
+      Text('').width(22)
+    }
+    .width('100%')
+    .height(56 + this.vp(this.safeTopPx))
+    .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
+    .backgroundColor(GlassTheme.barColor(this.glassLevel))
+    .systemMaterial(GlassTheme.material(this.glassLevel))
+    .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
+  }
+
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
+    Stack({ alignContent: Alignment.Top }) {
       Column() {
       }
       .width('100%')
@@ -202,27 +222,7 @@ struct PostDetailPage {
       .height('100%')
       .padding({ top: 56 + this.vp(this.safeTopPx), bottom: this.vp(this.safeBottomPx) })
 
-      // 顶栏
-      Column() {
-        Row({ space: 12 }) {
-          Text('←').fontSize(22).fontColor('#101828')
-            .onClick(() => router.back())
-          Text('帖子')
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .layoutWeight(1)
-            .textAlign(TextAlign.Center)
-          Text('').width(22)
-        }
-        .width('100%')
-        .height(56 + this.vp(this.safeTopPx))
-        .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
-        .backgroundColor(GlassTheme.barColor(this.glassLevel))
-        .systemMaterial(GlassTheme.material(this.glassLevel))
-        .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
-      }
-      .width('100%')
-      .hitTestBehavior(HitTestMode.None)
+      this.TopBar()
 
       // 图片全屏预览
       if (this.showPreview && this.previewUrl !== '') {
