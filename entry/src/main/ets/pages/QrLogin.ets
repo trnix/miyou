@@ -1,11 +1,10 @@
 import { router } from '@kit.ArkUI';
 import { QrLoginApi, QrStatus } from '../net/QrLoginApi';
-import { DeviceIdentity } from '../auth/DeviceIdentity';
 import { Session } from '../auth/Session';
 import { GlassTheme } from '../view/GlassTheme';
 
-// R4 扫码登录：生成二维码 → 轮询状态（1.5s）→ 确认后写入 stoken 凭据。
-// -106 二维码过期自动刷新；补齐 ltoken 为尽力而为，失败不影响登录。
+// R4 扫码登录：生成二维码 → 轮询状态（1.5s）→ 确认后写入凭据。
+// 过期（expired）自动刷新；凭据来自确认响应的 tokens + user_info，无存根换发步骤。
 @Entry
 @Component
 struct QrLoginPage {
@@ -15,6 +14,7 @@ struct QrLoginPage {
   @State statusText: string = '正在生成二维码…';
   @State generating: boolean = true;
   private ticket: string = '';
+  private flow: string = 'app';
   private timer: number = -1;
   private polling: boolean = false;
 
@@ -44,7 +44,6 @@ struct QrLoginPage {
     this.generating = true;
     this.statusText = '正在生成二维码…';
     try {
-      await DeviceIdentity.ensureFp();
       const r = await QrLoginApi.create();
       if (!r.ok) {
         this.generating = false;
@@ -52,6 +51,7 @@ struct QrLoginPage {
         return;
       }
       this.ticket = r.ticket;
+      this.flow = r.flow;
       this.qrUrl = r.url;
       this.generating = false;
       this.statusText = '请使用米游社 App 扫码';
@@ -70,14 +70,14 @@ struct QrLoginPage {
     }
     this.polling = true;
     try {
-      const s: QrStatus = await QrLoginApi.query(this.ticket);
-      if (s.retcode === -106) {
+      const s: QrStatus = await QrLoginApi.query(this.ticket, this.flow);
+      if (s.status === 'expired') {
         this.start(); // 二维码过期，自动刷新后继续轮询
         return;
       }
-      if (s.status === 'Scanned') {
+      if (s.status === 'scanned') {
         this.statusText = '已扫码，请在手机上确认登录';
-      } else if (s.status === 'Confirmed') {
+      } else if (s.status === 'confirmed') {
         await this.finish(s);
         return;
       } else if (s.retcode !== 0) {
@@ -92,34 +92,14 @@ struct QrLoginPage {
 
   private async finish(s: QrStatus): Promise<void> {
     this.stopPoll();
-    if (s.stoken === '' || s.aid === '') {
+    if (s.pairs.length === 0) {
       this.statusText = '登录确认但凭据不完整，请重试';
       this.ticket = '';
       this.qrUrl = '';
       return;
     }
     this.statusText = '登录成功，正在写入凭据…';
-    const parts: string[] = [
-      `stuid=${s.aid}`,
-      `stoken=${s.stoken}`,
-      `stoken_v2=${s.stoken}`,
-      `mid=${s.mid}`,
-      `ltuid=${s.aid}`,
-      `ltuid_v2=${s.aid}`,
-      `account_id=${s.aid}`,
-      `account_id_v2=${s.aid}`
-    ];
-    let ltoken = '';
-    try {
-      ltoken = await QrLoginApi.exchangeLToken(s.stoken, s.mid);
-    } catch (e) {
-      // 尽力而为
-    }
-    if (ltoken !== '') {
-      parts.push(`ltoken=${ltoken}`);
-      parts.push(`ltoken_v2=${ltoken}`);
-    }
-    const extra = parts.join('; ');
+    const extra = s.pairs.join('; ');
     const existing = Session.cookie();
     Session.save(existing.length > 0 ? `${existing}; ${extra}` : extra);
     this.statusText = '登录成功';
