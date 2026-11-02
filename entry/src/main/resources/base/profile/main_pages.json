@@ -2,6 +2,7 @@
   "src": [
     "pages/AppShell",
     "pages/Login",
-    "pages/PostDetail"
+    "pages/PostDetail",
+    "pages/QrLogin"
   ]
 }

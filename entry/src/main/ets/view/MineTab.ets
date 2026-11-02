@@ -87,6 +87,10 @@ export struct MineTab {
                 .onClick(() => Session.clear())
             }
           }
+          if (this.cookie.length > 0) {
+            Button('扫码登录（完整战绩凭据）')
+              .onClick(() => router.pushUrl({ url: 'pages/QrLogin' }))
+          }
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')

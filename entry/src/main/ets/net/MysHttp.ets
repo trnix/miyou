@@ -47,6 +47,25 @@ export class MysHttp {
     }
   }
 
+  // JSON POST：extraData 传已序列化字符串，调用方负责 content-type 头。
+  static async postJson(url: string, headers: Record<string, string>, body: string): Promise<RawResult> {
+    const req = http.createHttp();
+    try {
+      const res = await req.request(url, {
+        method: http.RequestMethod.POST,
+        expectDataType: http.HttpDataType.STRING,
+        header: headers,
+        extraData: body,
+        connectTimeout: 10000,
+        readTimeout: 10000
+      });
+      const text = typeof res.result === 'string' ? res.result : JSON.stringify(res.result);
+      return { httpCode: res.responseCode, body: text };
+    } finally {
+      req.destroy();
+    }
+  }
+
   static async getObject(url: string, withCookie: boolean): Promise<Object> {
     const raw = await MysHttp.request(url, MysHttp.buildHeaders(withCookie));
     return JSON.parse(raw.body) as Object;
