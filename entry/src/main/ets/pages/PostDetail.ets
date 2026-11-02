@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { PostApi } from '../net/PostApi';
 import { PostModels, PostDetail, PostBlock } from '../model/PostModels';
+import { ReplyModels, ReplyItem } from '../model/ReplyModels';
 import { GlassTheme } from '../view/GlassTheme';
 import { formatCount } from '../model/FeedModels';
 
@@ -19,6 +20,12 @@ struct PostDetailPage {
   @State errorText: string = '';
   @State previewUrl: string = '';
   @State showPreview: boolean = false;
+  @State replies: ReplyItem[] = [];
+  @State replyLoading: boolean = false;
+  @State replyError: string = '';
+  @State replyLastId: string = '';
+  @State replyIsLast: boolean = true;
+  @State replyLoaded: boolean = false;
   private postId: string = '';
 
   private vp(px: number): number {
@@ -44,6 +51,7 @@ struct PostDetailPage {
       const d = PostModels.parseDetail(raw, this.postId);
       if (d.retcode === 0) {
         this.detail = d;
+        this.loadReplies(false);
       } else {
         this.errorText = `接口返回 ${d.retcode}（${d.message}）`;
       }
@@ -51,6 +59,47 @@ struct PostDetailPage {
       this.errorText = '网络异常，请检查网络后重试';
     } finally {
       this.loading = false;
+    }
+  }
+
+  // 评论独立异步加载，不阻塞正文；more=true 时按 last_id 游标翻页并去重合并。
+  private async loadReplies(more: boolean): Promise<void> {
+    if (this.replyLoading) {
+      return;
+    }
+    this.replyLoading = true;
+    if (!more) {
+      this.replyError = '';
+    }
+    try {
+      const raw = await PostApi.fetchReplies(this.postId, more ? this.replyLastId : '', 20);
+      const r = ReplyModels.parse(raw);
+      if (r.retcode === 0) {
+        this.replyLastId = r.lastId;
+        this.replyIsLast = r.isLast;
+        if (more) {
+          const merged = this.replies.slice();
+          const seen = new Set<string>();
+          merged.forEach((x: ReplyItem) => seen.add(x.replyId));
+          r.replies.forEach((x: ReplyItem) => {
+            if (!seen.has(x.replyId)) {
+              seen.add(x.replyId);
+              merged.push(x);
+            }
+          });
+          this.replies = merged;
+        } else {
+          this.replies = r.replies;
+        }
+        this.replyLoaded = true;
+        this.replyError = '';
+      } else {
+        this.replyError = `评论接口返回 ${r.retcode}（${r.message}）`;
+      }
+    } catch (e) {
+      this.replyError = '评论加载失败，请检查网络';
+    } finally {
+      this.replyLoading = false;
     }
   }
 
@@ -103,6 +152,50 @@ struct PostDetailPage {
     .backgroundColor(GlassTheme.barColor(this.glassLevel))
     .systemMaterial(GlassTheme.material(this.glassLevel))
     .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
+  }
+
+  @Builder
+  ReplyView(item: ReplyItem) {
+    Column({ space: 6 }) {
+      Row({ space: 8 }) {
+        Image(item.avatar)
+          .width(32)
+          .height(32)
+          .borderRadius(16)
+          .alt($r('app.media.app_icon'))
+        Column({ space: 2 }) {
+          Text(item.author)
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#344054')
+          Text(item.timeText)
+            .fontSize(11)
+            .fontColor('#98A2B3')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        if (item.likeNum > 0) {
+          Text(`赞 ${formatCount(item.likeNum)}`)
+            .fontSize(11)
+            .fontColor('#98A2B3')
+        }
+      }
+      .width('100%')
+      if (item.content !== '') {
+        Text(item.content)
+          .fontSize(14)
+          .fontColor('#101828')
+          .lineHeight(21)
+          .width('100%')
+      }
+      if (item.subReplyCount > 0) {
+        Text(`共 ${item.subReplyCount} 条回复`)
+          .fontSize(12)
+          .fontColor('#1570EF')
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
   }
 
   build() {
@@ -204,12 +297,50 @@ struct PostDetailPage {
               .width('100%')
               .padding({ top: 4, bottom: 8 })
 
-              Text('评论区将在 R6 接入楼中楼浏览')
-                .fontSize(12)
-                .fontColor('#98A2B3')
-                .width('100%')
-                .textAlign(TextAlign.Center)
-                .padding({ bottom: 20 })
+              // 评论区
+              Column({ space: 12 }) {
+                Text('评论')
+                  .fontSize(17)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#101828')
+                  .width('100%')
+                if (this.replies.length === 0 && this.replyLoading) {
+                  Text('评论加载中…')
+                    .fontSize(13)
+                    .fontColor('#98A2B3')
+                    .width('100%')
+                } else if (this.replies.length === 0 && this.replyError !== '') {
+                  Text(this.replyError)
+                    .fontSize(13)
+                    .fontColor('#667085')
+                    .width('100%')
+                  Button('重试')
+                    .onClick(() => this.loadReplies(false))
+                } else if (this.replies.length === 0 && this.replyLoaded) {
+                  Text('还没有评论')
+                    .fontSize(13)
+                    .fontColor('#98A2B3')
+                    .width('100%')
+                } else {
+                  ForEach(this.replies, (item: ReplyItem) => {
+                    this.ReplyView(item)
+                  }, (item: ReplyItem) => item.replyId)
+                  if (!this.replyIsLast) {
+                    Button(this.replyLoading ? '加载中…' : '加载更多评论')
+                      .enabled(!this.replyLoading)
+                      .onClick(() => this.loadReplies(true))
+                  } else {
+                    Text('楼中楼回复将在 R6 接入')
+                      .fontSize(11)
+                      .fontColor('#C0C4CC')
+                      .width('100%')
+                      .textAlign(TextAlign.Center)
+                  }
+                }
+              }
+              .width('100%')
+              .alignItems(HorizontalAlign.Start)
+              .padding({ top: 8, bottom: 20 })
             }
             .width('100%')
             .padding({ left: 16, right: 16, top: 16 })

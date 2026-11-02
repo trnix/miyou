@@ -1,12 +1,17 @@
 # 米柚原生重写 · 移植蓝图
 
-> 版本 v1.4 ｜ 2026-11-02（v1.0/v1.1 见 2026-10-30，v1.2/v1.3 同月）
+> 版本 v1.5 ｜ 2026-11-02（v1.0/v1.1 见 2026-10-30，v1.2–v1.4 同月）
 > 定位：重写版的需求基线。后续开发任务拆解、验收均以本文档为准；变更需修订本文档并升版本号。
 > 依据：米游社 2.117.0 APK 逆向分析报告、「米柚开发」资料包、docs/handover.md、M0 真机实测（登录/Cookie/探活）、官方 App 四张页面截图（消息/关注/我的/频道）、官方文档镜像核验记录。
 
+## v1.5 变更摘要
+
+- **评论浏览实装**：`getPostReplies` 接入，新增 `ReplyModels.ets`（防御性解析）；详情页底部评论区（头像/昵称/时间/正文/点赞数），热门评论 + last_id 手动分页去重；楼中楼仅显示「共 N 条回复」提示，展开归 R6；评论独立异步加载，失败降级不阻塞正文。R2 至此收尾。
+- **图标链路修复**：删除 CI `Restore binary assets` 步骤（该步骤每次构建都从 0.4 归档分支覆盖新图标，为图标长期不显示的根因）；清理两处 `.alt($r('app.media.foreground'))` 悬空引用，统一改用 `app_icon`。
+
 ## v1.4 变更摘要
 
-- **R2 帖子详情开工**：`getPostFull` 接入，新增 `PostModels.ets`（防御性正文归一：text/image/unknown 三态）、`PostApi.ets`、`pages/PostDetail.ets`；首页卡片点击跳转详情；图片支持点击进入全屏预览（点按关闭）；评论区与视频播放保持占位，归 R6。
+- **R2 帖子详情开工**：`getPostFull` 接入，新增 `PostModels.ets`（防御性正文归一：text/image/unknown 三态 + HTML 兜底）、`PostApi.ets`、`pages/PostDetail.ets`；首页卡片点击跳转详情；图片支持点击进入全屏预览（点按关闭）；评论区与视频播放保持占位，归 R6。
 - **应用图标**：用户决定使用其提供的《原神》派蒙图片（自用、不开源、不分发）。版权归属米哈游，仅限个人设备侧载场景；任何对外分发前必须替换为合规原创图标。风险注记已写入 handover。
 
 ## v1.3 变更摘要
@@ -47,11 +52,11 @@
 |---|---|---|---|---|---|---|
 | 1 | 启动与主壳 | SplashActivity / HyperionMainActivity | ArkUI 四标签 + 光感玻璃顶/底栏 | P0 | 读 | ✅ M0 完成 |
 | 2 | 登录 | PorteLoginActivity / PorteQRConfirmActivity | 网页登录（user.mihoyo.com）+ Cookie 捕获清洗；扫码登录 R4 补齐 stoken | P0 | 读* | ✅ 网页登录完成（v2 Cookie）；扫码待做 |
-| 3 | 首页信息流 | RN bundle + 频道页（图4） | 游戏频道 tabs + 子版 + 发现卡片流；崩坏3 暂下架（gids=3 实测返回崩坏学园2 内容） | P0 | 读 | R1；webHome/getNewsFeed（0.4.0 已验证） |
-| 4 | 帖子详情 | PostDetailActivity / UgcPostDetailActivity | 结构化富文本按块渲染，未知块降级 | P0 | 读 | ◐ R2 开发中；getPostFull 已接入 |
+| 3 | 首页信息流 | RN bundle + 频道页（图4） | 游戏频道 tabs + 子版 + 发现卡片流；崩坏3 暂下架（gids=3 实测返回崩坏学园2 内容） | P0 | 读 | ✅ R1 完成；webHome/getNewsFeed |
+| 4 | 帖子详情 | PostDetailActivity / UgcPostDetailActivity | 结构化富文本按块渲染，未知块降级 | P0 | 读 | ✅ R2 完成；getPostFull |
 | 5 | 设置 | MysSettingsActivity | 沉浸光感开关 / 账号 / 缓存 / 关于 | P0 | 读 | ✅ 沉浸光感开关完成；其余随迭代 |
 | 6 | 版区浏览 | TopicActivity / RelateTopicActivity | 游戏版区 + 子版块列表 | P1 | 读 | R6 |
-| 7 | 评论浏览 | CommentDetailActivity / CommentReplyActivity | 热门评论 + 分页；楼中楼 R6 | P1 | 读 | R6；getPostReplies（热评已验证） |
+| 7 | 评论浏览 | CommentDetailActivity / CommentReplyActivity | 热门评论 + 分页；楼中楼 R6 | P1 | 读 | ◐ 热评与分页完成（v1.5）；楼中楼归 R6；getPostReplies |
 | 8 | 我的角色/战绩 | game_record 体系 + 我的页角色卡（图3） | 角色卡轮播 + 原神/星铁/绝区零战绩 | P1 | 读 | R5；**需 stoken**（实证：ltoken 调 record 域 -10001） |
 | 9 | 实时便签+服务卡片 | 6×AppWidgetProvider | 便签页 + Form Kit 卡片（体力/开拓力） | P1 | 读 | R5；需 stoken；刷新 ≥30min |
 | 10 | 图片浏览 | PictureViewerActivity / ImagesViewerActivityV2 | 图片网格 + 缩放预览 | P1 | 读 | ◐ R2 已带基础全屏预览；缩放/网格归 R6 |
@@ -127,14 +132,14 @@
 - 设备身份：`device_id` 首启生成持久化；登录后 Web Cookie 自带 DEVICEFP，`x-rpc-device_fp` 可取之，getFp 在线获取暂缓。
 - 签名：DS1/DS2 通用实现已就位（DsSign.ets），salt 配置化留空待填。
 - 错误处理：retcode -100/-10001 统一跳登录；1034/限流指数退避；网络异常页面级兜底文案。
-- 渲染：结构化内容按块映射组件；未知块/缺字段降级占位，不得崩溃。
+- 渲染：结构化内容按块映射组件；未知块/缺字段降级占位，不得崩溃；`post.content` 可能为 HTML（Quill 纯文本帖），须有 HTML 兜底解析。
 
 ## 5. 开发顺序（R1–R7）
 
 | 序 | 模块 | 内容 | 数据基础 | 验收标准 |
 |---|---|---|---|---|
 | R1 | 频道发现信息流 | 游戏频道 tabs（三频道：原神/绝区零/星穹铁道）+ 子版 tabs + 发现卡片流（图4结构），首屏与分页 | webHome / getNewsFeed（无需 stoken） | 三频道切换、卡片按 3.3 规范渲染、下拉刷新、弱网降级 |
-| R2 | 帖子详情 | 标题/作者/正文块（文字/图片/视频占位）/互动计数/话题；图片网格与预览 | getPostFull | 主流帖子完整渲染不崩、图片可放大、未知块有兜底 |
+| R2 | 帖子详情 | 标题/作者/正文块（文字/图片/视频占位）/互动计数/话题；图片网格与预览；评论浏览 | getPostFull + getPostReplies | 主流帖子完整渲染不崩、图片可放大、未知块有兜底、热门评论可翻页 |
 | R3 | 消息中心（只读） | 聊天/通知双 tab、三快捷入口、通知列表（图1结构） | bbs wapi（ltoken 已验证可达） | 通知列表加载与未读展示；接口不可达时给降级说明 |
 | R4 | 扫码登录 + stoken 换发 | 米游社 App 扫码流程（生成二维码→轮询→确认→取 stoken）；账号槽扩展 | passport-api 扫码接口 | 扫码全流程真机通过，stoken 落库，record 域探活转 0 |
 | R5 | 我的角色/战绩/便签/卡片 | 我的页资料区+角色卡轮播（图3结构）、原神/星铁/绝区零战绩与实时便签、Form Kit 服务卡片、本地提醒 | game_record（stoken） | 角色卡数据完整、卡片 ≥30min 刷新 |
