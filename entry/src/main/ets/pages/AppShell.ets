@@ -1,6 +1,7 @@
 import { GlassTheme } from '../view/GlassTheme';
 import { MineTab } from '../view/MineTab';
 import { HomeTab } from '../view/HomeTab';
+import { MessageTab } from '../view/MessageTab';
 import { uiMaterial } from '@kit.ArkUI';
 
 @Entry
@@ -9,6 +10,7 @@ struct AppShell {
   @StorageLink('glassLevel') glassLevel: number = 2;
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
+  @StorageLink('msgUnreadTotal') msgUnread: number = 0;
   @State currentTab: number = 0;
   private tabTitles: string[] = ['首页', '社区', '消息', '我的'];
   private readonly topBar: number = 56;
@@ -49,7 +51,7 @@ struct AppShell {
             if (this.currentTab === 1) {
               this.PlaceholderTab('社区', '版区浏览将在后续里程碑接入\n（官方资讯 / 攻略 / 同人 / 酒馆）')
             } else if (this.currentTab === 2) {
-              this.PlaceholderTab('消息', '消息中心为只读拉取，将在 R3 接入\n（需登录态）')
+              MessageTab()
             } else {
               MineTab()
             }
@@ -82,10 +84,23 @@ struct AppShell {
       Row() {
         ForEach(this.tabTitles, (title: string, idx: number) => {
           Column() {
-            Text(title)
-              .fontSize(13)
-              .fontColor(this.currentTab === idx ? '#1570EF' : '#667085')
-              .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
+            if (idx === 2 && this.msgUnread > 0) {
+              Badge({
+                count: this.msgUnread > 99 ? 99 : this.msgUnread,
+                position: BadgePosition.RightTop,
+                style: { badgeSize: 16, badgeColor: '#FA2A19' }
+              }) {
+                Text(title)
+                  .fontSize(13)
+                  .fontColor(this.currentTab === idx ? '#1570EF' : '#667085')
+                  .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
+              }
+            } else {
+              Text(title)
+                .fontSize(13)
+                .fontColor(this.currentTab === idx ? '#1570EF' : '#667085')
+                .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
+            }
           }
           .layoutWeight(1)
           .padding({ top: 14, bottom: 14 })
