@@ -138,7 +138,7 @@ struct PostDetailPage {
                   .width(44)
                   .height(44)
                   .borderRadius(22)
-                  .alt($r('app.media.foreground'))
+                  .alt($r('app.media.app_icon'))
                 Column({ space: 2 }) {
                   Row({ space: 6 }) {
                     Text(this.detail!.author)

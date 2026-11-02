@@ -172,7 +172,7 @@ export struct HomeTab {
           .width(40)
           .height(40)
           .borderRadius(20)
-          .alt($r('app.media.foreground'))
+          .alt($r('app.media.app_icon'))
         Column({ space: 2 }) {
           Row({ space: 6 }) {
             Text(post.author)
