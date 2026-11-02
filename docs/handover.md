@@ -1,6 +1,7 @@
 # 米柚项目交接文档(AI Handover)
 
 > 本文档面向接手本仓库的人或 AI。**2026-10-30 更新：项目按「官方架构为蓝图的原生重写」路线重启，main 旧代码已于当日清空；旧 0.4.0 骨架完整归档于分支 `archive/v0.4-skeleton`（同一提交 `af799e1` 亦有 tag `v0.4.0-b31`），随时可取回参考。** 仓库保留 Actions 变量(Secrets/Variables)、docs/ 与 scripts/sign.sh；只要这 7 个变量未动，任何新的鸿蒙工程放入本仓库即可直接复用自动构建与签名。
+> **2026-11-02 更正**：第 5 节 0.4.0 时代频道 gids 记录已过时——重写版实测 gids=3 返回的是崩坏学园2 内容而非崩坏3，崩坏3 频道已从当前版本下架，正确值暂时无法考证；第 5 节其余内容为 0.4.0 历史记录，仅供参考。
 
 ---
 
@@ -250,9 +251,9 @@ echo "签名完成: dist/app-signed.hap"
 - `https://bbs-api.miyoushe.com/post/wapi/getNewsList?gids=&type=&page_size=` — 官方公告/活动/资讯
 - `https://bbs-api.miyoushe.com/post/api/getPostReplies?post_id=&size=&only_good_replies=false&is_hot=true` — 热门评论(**未经真机最终验证，失效时按代码降级处理**)
 
-游戏 ID(gids):原神=2、崩坏3=3、星穹铁道=6、绝区零=8。登录为官方 WebView 捕获 Cookie(ltoken/ltuid 等键判定),Cookie 由 Auth 存 preferences 并由 MiyousheApi 自动带 Cookie 头发送；不接触账密。
+游戏 ID(gids):原神=2、星穹铁道=6、绝区零=8；~~崩坏3=3~~（2026-11-02 更正：重写版实测 gids=3 返回崩坏学园2 内容，崩坏3 正确 ID 无法考证，该频道已下架）。登录为官方 WebView 捕获 Cookie(ltoken/ltuid 等键判定),Cookie 由 Auth 存 preferences 并由 MiyousheApi 自动带 Cookie 头发送；不接触账密。
 
-已知遗留：视频帖只提示不播放；评论无楼中楼展开；DS 签名的接口未接入(签到/战绩需此能力，存在风控)。兼容教训:**勿用实验性 `@ohos.arkui.uiMaterial`**(真机闪退/材质失效),用 `backgroundBlurStyle` + `shadow` 与 `setWindowLayoutFullScreen(true)` 实现悬浮与沉浸。
+已知遗留：视频帖只提示不播放；评论无楼中楼展开；DS 签名的接口未接入(签到/战绩需此能力，存在风控)。
 
 ## 6. 排查表(沿用旧 README 经验)
 
