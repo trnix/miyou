@@ -137,6 +137,24 @@ export struct MineTab {
         .backgroundColor('#FFFFFF')
         .borderRadius(16)
 
+        Column({ space: 8 }) {
+          Text('图标诊断').fontSize(15).fontWeight(FontWeight.Medium)
+          Image($r('app.media.app_icon'))
+            .width(96)
+            .height(96)
+            .borderRadius(24)
+            .border({ width: 1, color: '#E4E7EC' })
+          Text('此处显示仓库打包的 app_icon.png。能看到派蒙图而桌面不显示 = 桌面缓存问题；此处也不显示 = 资源打包有问题。')
+            .fontSize(12)
+            .fontColor('#667085')
+            .lineHeight(18)
+        }
+        .alignItems(HorizontalAlign.Center)
+        .width('100%')
+        .padding(16)
+        .backgroundColor('#FFFFFF')
+        .borderRadius(16)
+
         Text('米柚 0.6.0 · 非官方米游社客户端 · 只读应用')
           .fontSize(11)
           .fontColor('#98A2B3')
