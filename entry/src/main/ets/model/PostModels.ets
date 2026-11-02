@@ -1,6 +1,7 @@
 // getPostFull 帖子详情模型与防御性解析。
 // 正文归一为 text / image / unknown 三种块；四种结构形态（NORMAL/PIC/UGC/VOD）各自归一化；
-// 未知块、解析失败、字段缺失一律降级，绝不崩溃——解析失败的兜底是纯文本 post.content。
+// structured_content 缺失时 post.content 可能是 HTML（官方新版 Quill 编辑器），单独走 HTML 兜底解析。
+// 未知块、解析失败、字段缺失一律降级，绝不崩溃。
 // 注意：ArkTS 禁止索引访问类型，断言后取键必须写成 (x as Record<string, Object>)['key']。
 
 export interface PostBlock {
@@ -134,6 +135,60 @@ function parseUgc(sc: Record<string, Object>): PostBlock[] {
   return blocks;
 }
 
+// HTML 兜底：提取 <img src> 为图片块，其余剥标签换行为文字块。
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, '\'')
+    .replace(/&#x27;/g, '\'');
+}
+
+function htmlToText(s: string): string {
+  const withBreaks = s
+    .replace(/<br\s*\/?>/i, '\n')
+    .replace(/<\/p>/i, '\n')
+    .replace(/<\/div>/i, '\n');
+  return decodeEntities(withBreaks.replace(/<[^>]*>/g, '')).trim();
+}
+
+function parseHtml(html: string): PostBlock[] {
+  const blocks: PostBlock[] = [];
+  let rest = html;
+  while (rest.length > 0) {
+    const imgIdx = rest.indexOf('<img');
+    if (imgIdx < 0) {
+      const t = htmlToText(rest);
+      if (t !== '') {
+        blocks.push(textBlock(t));
+      }
+      break;
+    }
+    const before = htmlToText(rest.substring(0, imgIdx));
+    if (before !== '') {
+      blocks.push(textBlock(before));
+    }
+    const tagEnd = rest.indexOf('>', imgIdx);
+    if (tagEnd < 0) {
+      break;
+    }
+    const tag = rest.substring(imgIdx, tagEnd);
+    const srcIdx = tag.indexOf('src="');
+    if (srcIdx >= 0) {
+      const q1 = srcIdx + 5;
+      const q2 = tag.indexOf('"', q1);
+      if (q2 > q1) {
+        blocks.push(imageBlock(tag.substring(q1, q2)));
+      }
+    }
+    rest = rest.substring(tagEnd + 1);
+  }
+  return blocks;
+}
+
 export class PostModels {
   static parseDetail(raw: Object, postId: string): PostDetail {
     const obj = raw as Record<string, Object>;
@@ -218,12 +273,17 @@ export class PostModels {
         topics = ts;
       }
     } catch (e) {
-      // 整体解析失败时保留已提取字段，blocks 走下方纯文本兜底
+      // 整体解析失败时保留已提取字段，blocks 走下方兜底
     }
 
-    // 结构化解析未产出任何块时，用纯文本正文兜底
+    // 结构化解析未产出块时：content 含 HTML 则走 HTML 解析，否则纯文本兜底
     if (blocks.length === 0 && contentText.trim() !== '') {
-      blocks.push(textBlock(contentText.trim()));
+      if (contentText.indexOf('<') >= 0 && contentText.indexOf('>') >= 0) {
+        blocks = parseHtml(contentText);
+      }
+      if (blocks.length === 0) {
+        blocks.push(textBlock(contentText.trim()));
+      }
     }
 
     return {
