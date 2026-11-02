@@ -1,6 +1,7 @@
 // getPostFull 帖子详情模型与防御性解析。
 // 正文归一为 text / image / unknown 三种块；四种结构形态（NORMAL/PIC/UGC/VOD）各自归一化；
 // 未知块、解析失败、字段缺失一律降级，绝不崩溃——解析失败的兜底是纯文本 post.content。
+// 注意：ArkTS 禁止索引访问类型，断言后取键必须写成 (x as Record<string, Object>)['key']。
 
 export interface PostBlock {
   kind: string; // 'text' | 'image' | 'unknown'
@@ -105,7 +106,7 @@ function parsePic(sc: Record<string, Object>): PostBlock[] {
   const imgs = sc['imgs'];
   if (Array.isArray(imgs)) {
     (imgs as Object[]).forEach((iv: Object) => {
-      const u = asStr(iv as Record<string, Object>['url']);
+      const u = asStr((iv as Record<string, Object>)['url']);
       if (u !== '') {
         blocks.push(imageBlock(u));
       }
@@ -124,7 +125,7 @@ function parseUgc(sc: Record<string, Object>): PostBlock[] {
   const imgs = sc['images'];
   if (Array.isArray(imgs)) {
     (imgs as Object[]).forEach((iv: Object) => {
-      const u = asStr(iv as Record<string, Object>['url']);
+      const u = asStr((iv as Record<string, Object>)['url']);
       if (u !== '') {
         blocks.push(imageBlock(u));
       }
@@ -209,7 +210,7 @@ export class PostModels {
       if (Array.isArray(topicArr)) {
         const ts: string[] = [];
         (topicArr as Object[]).forEach((tv: Object) => {
-          const n = asStr(tv as Record<string, Object>['name']);
+          const n = asStr((tv as Record<string, Object>)['name']);
           if (n !== '') {
             ts.push(n);
           }
