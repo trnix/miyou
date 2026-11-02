@@ -1,8 +1,13 @@
 # 米柚原生重写 · 移植蓝图
 
-> 版本 v1.3 ｜ 2026-11-02（v1.0/v1.1 见 2026-10-30，v1.2 同日早前）
+> 版本 v1.4 ｜ 2026-11-02（v1.0/v1.1 见 2026-10-30，v1.2/v1.3 同月）
 > 定位：重写版的需求基线。后续开发任务拆解、验收均以本文档为准；变更需修订本文档并升版本号。
 > 依据：米游社 2.117.0 APK 逆向分析报告、「米柚开发」资料包、docs/handover.md、M0 真机实测（登录/Cookie/探活）、官方 App 四张页面截图（消息/关注/我的/频道）、官方文档镜像核验记录。
+
+## v1.4 变更摘要
+
+- **R2 帖子详情开工**：`getPostFull` 接入，新增 `PostModels.ets`（防御性正文归一：text/image/unknown 三态）、`PostApi.ets`、`pages/PostDetail.ets`；首页卡片点击跳转详情；图片支持点击进入全屏预览（点按关闭）；评论区与视频播放保持占位，归 R6。
+- **应用图标**：用户决定使用其提供的《原神》派蒙图片（自用、不开源、不分发）。版权归属米哈游，仅限个人设备侧载场景；任何对外分发前必须替换为合规原创图标。风险注记已写入 handover。
 
 ## v1.3 变更摘要
 
@@ -22,7 +27,7 @@
 2. 只读先行：前期不实现任何远端写入（发帖/评论/回复/点赞/关注/收藏/签到/反馈）。网络层预留 DS1/DS2 签名与完整 Cookie 能力，写功能归入 R7 灰度，开启前单独风险评估与用户明示。
 3. 防御性实现：接口字段缺失/变动不得导致崩溃；统一 snake_case→camelCase 映射层 + 缺省兜底。
 4. 官方材质 API 启用规则：`uiMaterial.ImmersiveMaterial` 为 API 26 正式能力，允许使用；必须配 `hdsMaterial.getSystemMaterialTypes()` 能力探测，能力不支持时自动回退；必须遵守属性顺序规则（3.2.7）。
-5. 资产约束：bundleName 固定 `com.miyou.app`（签名 Profile 绑定，不可改）；公开分发不使用「米游社」名称与米哈游素材图标。
+5. 资产约束：bundleName 固定 `com.miyou.app`（签名 Profile 绑定，不可改）；图标为米哈游版权素材、仅限自用不分发，对外分发前必须替换（见 v1.4）。
 
 ## 1. 信息架构（对标官方）
 
@@ -43,13 +48,13 @@
 | 1 | 启动与主壳 | SplashActivity / HyperionMainActivity | ArkUI 四标签 + 光感玻璃顶/底栏 | P0 | 读 | ✅ M0 完成 |
 | 2 | 登录 | PorteLoginActivity / PorteQRConfirmActivity | 网页登录（user.mihoyo.com）+ Cookie 捕获清洗；扫码登录 R4 补齐 stoken | P0 | 读* | ✅ 网页登录完成（v2 Cookie）；扫码待做 |
 | 3 | 首页信息流 | RN bundle + 频道页（图4） | 游戏频道 tabs + 子版 + 发现卡片流；崩坏3 暂下架（gids=3 实测返回崩坏学园2 内容） | P0 | 读 | R1；webHome/getNewsFeed（0.4.0 已验证） |
-| 4 | 帖子详情 | PostDetailActivity / UgcPostDetailActivity | 结构化富文本按块渲染，未知块降级 | P0 | 读 | R2；getPostFull（0.4.0 已验证） |
+| 4 | 帖子详情 | PostDetailActivity / UgcPostDetailActivity | 结构化富文本按块渲染，未知块降级 | P0 | 读 | ◐ R2 开发中；getPostFull 已接入 |
 | 5 | 设置 | MysSettingsActivity | 沉浸光感开关 / 账号 / 缓存 / 关于 | P0 | 读 | ✅ 沉浸光感开关完成；其余随迭代 |
 | 6 | 版区浏览 | TopicActivity / RelateTopicActivity | 游戏版区 + 子版块列表 | P1 | 读 | R6 |
 | 7 | 评论浏览 | CommentDetailActivity / CommentReplyActivity | 热门评论 + 分页；楼中楼 R6 | P1 | 读 | R6；getPostReplies（热评已验证） |
 | 8 | 我的角色/战绩 | game_record 体系 + 我的页角色卡（图3） | 角色卡轮播 + 原神/星铁/绝区零战绩 | P1 | 读 | R5；**需 stoken**（实证：ltoken 调 record 域 -10001） |
 | 9 | 实时便签+服务卡片 | 6×AppWidgetProvider | 便签页 + Form Kit 卡片（体力/开拓力） | P1 | 读 | R5；需 stoken；刷新 ≥30min |
-| 10 | 图片浏览 | PictureViewerActivity / ImagesViewerActivityV2 | 图片网格 + 缩放预览 | P1 | 读 | R2 |
+| 10 | 图片浏览 | PictureViewerActivity / ImagesViewerActivityV2 | 图片网格 + 缩放预览 | P1 | 读 | ◐ R2 已带基础全屏预览；缩放/网格归 R6 |
 | 11 | 消息中心 | MsgListActivity + 消息页（图1） | 聊天/通知双 tab + 三快捷入口 + 通知列表（只读） | P2 | 读 | R3；bbs wapi（ltoken 可达已验证） |
 | 12 | 视频播放 | VideoDetailActivity（ijkplayer） | Video 组件播放 | P2 | 读 | R6 |
 | 13 | 搜索 | GlobalSearchActivity | 帖子/用户/版区搜索 | P2 | 读 | R6 |
@@ -141,7 +146,7 @@
 - 接口时效：全部 API 为社区逆向，随时可能失效；渲染层兜底 + 版本/salt 配置化是生命线。
 - 账号风控：device_fp/device_id 成对稳定；触发 gt4 滑块走 Web 组件兜底。
 - stoken 依赖：战绩/便签/签到类全部依赖 R4 扫码；扫码流程本身也属逆向，存在被官方调整的风险，需留「网页战绩查看」降级路径。
-- 合规：README 与关于页保留「非官方、仅查看授权数据」声明；不收集账密；Cookie 仅存本机。
+- 合规：README 与关于页保留「非官方、仅查看授权数据」声明；不收集账密；Cookie 仅存本机；图标为米哈游版权素材、仅限自用不分发。
 - 签名资产：7 个 Actions 变量为唯一签名链路来源，任何重构不得输出其明文。
 
 —— 蓝图以上。开发中如与本文档冲突，先改文档再改代码。

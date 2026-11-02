@@ -1,4 +1,4 @@
-import { promptAction } from '@kit.ArkUI';
+import { promptAction, router } from '@kit.ArkUI';
 import { FeedApi } from '../net/FeedApi';
 import { FeedPost, HomeResult, FeedModels, formatCount } from '../model/FeedModels';
 import { GlassTheme } from './GlassTheme';
@@ -280,7 +280,7 @@ export struct HomeTab {
     .backgroundColor('#FFFFFF')
     .borderRadius(14)
     .onClick(() => {
-      promptAction.showToast({ message: '帖子详情将在 R2 接入', duration: 1500 });
+      router.pushUrl({ url: 'pages/PostDetail', params: { postId: post.postId } })
     })
   }
 

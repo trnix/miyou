@@ -1,6 +1,7 @@
 {
   "src": [
     "pages/AppShell",
-    "pages/Login"
+    "pages/Login",
+    "pages/PostDetail"
   ]
 }
