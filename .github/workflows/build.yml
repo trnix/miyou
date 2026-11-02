@@ -16,25 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore binary assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          ARCHIVE_API="https://api.github.com/repos/${{ github.repository }}/contents"
-          REF="archive/v0.4-skeleton"
-          mkdir -p AppScope/resources/base/media entry/src/main/resources/base/media
-          for pair in \
-            "AppScope/resources/base/media/app_icon.png" \
-            "entry/src/main/resources/base/media/background.png" \
-            "entry/src/main/resources/base/media/foreground.png" \
-            "entry/src/main/resources/base/media/startIcon.png"; do
-            curl -fsSL --retry 3 \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github.raw" \
-              "$ARCHIVE_API/$pair?ref=$REF" -o "$pair"
-          done
-
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
