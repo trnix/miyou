@@ -1,8 +1,13 @@
 # 米柚原生重写 · 移植蓝图
 
-> 版本 v1.2 ｜ 2026-11-02（v1.1 / v1.0 见 2026-10-30）
+> 版本 v1.3 ｜ 2026-11-02（v1.0/v1.1 见 2026-10-30，v1.2 同日早前）
 > 定位：重写版的需求基线。后续开发任务拆解、验收均以本文档为准；变更需修订本文档并升版本号。
 > 依据：米游社 2.117.0 APK 逆向分析报告、「米柚开发」资料包、docs/handover.md、M0 真机实测（登录/Cookie/探活）、官方 App 四张页面截图（消息/关注/我的/频道）、官方文档镜像核验记录。
+
+## v1.3 变更摘要
+
+- **光感设置简化为开关**：设置页由「关闭/弱/中/强」四档按钮改为「沉浸光感」文字 + 胶囊开关（ToggleType.Switch）；实测弱/中档视觉差异不可辨，予以移除。开关语义：关=0（不透明遮罩）、开=3（THICK 强档）。
+- 持久层兼容：AppStorage/preferences 仍存 0–3 数值；旧存的 1/2 在 hydrate 时归一为 3，新装默认开。
 
 ## v1.2 变更摘要
 
@@ -39,7 +44,7 @@
 | 2 | 登录 | PorteLoginActivity / PorteQRConfirmActivity | 网页登录（user.mihoyo.com）+ Cookie 捕获清洗；扫码登录 R4 补齐 stoken | P0 | 读* | ✅ 网页登录完成（v2 Cookie）；扫码待做 |
 | 3 | 首页信息流 | RN bundle + 频道页（图4） | 游戏频道 tabs + 子版 + 发现卡片流；崩坏3 暂下架（gids=3 实测返回崩坏学园2 内容） | P0 | 读 | R1；webHome/getNewsFeed（0.4.0 已验证） |
 | 4 | 帖子详情 | PostDetailActivity / UgcPostDetailActivity | 结构化富文本按块渲染，未知块降级 | P0 | 读 | R2；getPostFull（0.4.0 已验证） |
-| 5 | 设置 | MysSettingsActivity | 光感强度 / 账号 / 缓存 / 关于 | P0 | 读 | ✅ 光感四档完成；其余随迭代 |
+| 5 | 设置 | MysSettingsActivity | 沉浸光感开关 / 账号 / 缓存 / 关于 | P0 | 读 | ✅ 沉浸光感开关完成；其余随迭代 |
 | 6 | 版区浏览 | TopicActivity / RelateTopicActivity | 游戏版区 + 子版块列表 | P1 | 读 | R6 |
 | 7 | 评论浏览 | CommentDetailActivity / CommentReplyActivity | 热门评论 + 分页；楼中楼 R6 | P1 | 读 | R6；getPostReplies（热评已验证） |
 | 8 | 我的角色/战绩 | game_record 体系 + 我的页角色卡（图3） | 角色卡轮播 + 原神/星铁/绝区零战绩 | P1 | 读 | R5；**需 stoken**（实证：ltoken 调 record 域 -10001） |
@@ -64,16 +69,16 @@
 
 ## 3. 视觉与交互规范：沉浸光感玻璃
 
-设计目标：顶栏与底栏呈现鸿蒙沉浸光感玻璃拟态，与系统状态栏/导航条视觉融合，用户可在设置中调节光感强度。
+设计目标：顶栏与底栏呈现鸿蒙沉浸光感玻璃拟态，与系统状态栏/导航条视觉融合，用户可在设置中一键开关。
 
-### 3.1 档位映射（设置页「光感强度」）
+### 3.1 开关映射（设置页「沉浸光感」）
 
-| 档位 | 视觉效果 | 技术参数（v1.2 实测定型） |
+设置项形式：左侧「沉浸光感」标题，右侧胶囊型开关（ToggleType.Switch，选中色 `#1570EF`），切换即时生效。
+
+| 状态 | 视觉效果 | 技术参数（v1.3 实测定型） |
 |---|---|---|
 | 关闭 | 纯色不透明 | ImmersiveMaterial(style=REGULAR, interactive=false, materialColor=不透明 #FFF7F8FA)；不透明 materialColor 遮住材质层滤镜，等同无玻璃效果 |
-| 弱 | 轻磨砂 | ImmersiveStyle.ULTRA_THIN + interactive=true + lightEffect(White) |
-| 中（默认） | 标准玻璃 | ImmersiveStyle.REGULAR + interactive=true + lightEffect(White) |
-| 强 | 厚重光感 | ImmersiveStyle.THICK + interactive=true + lightEffect(White) + 0.5vp 半透明白边 |
+| 开启（默认） | 厚重光感 | ImmersiveStyle.THICK + interactive=true + lightEffect(White) + 0.5vp 半透明白边 |
 
 ### 3.2 实现要点（实测结论持续累积）
 
@@ -81,7 +86,7 @@
 2. 沉浸结构为三层叠加：底层全屏底色 → 全屏内容层 → 顶部覆盖层（标题栏，不占据内容空间）。非首页页面用顶端 padding 避让标题栏；首页用 List 的 `contentStartOffset`/`contentEndOffset` 做首尾避让，卡片滚动时从栏背后经过。
 3. 覆盖信息流的全屏透明容器（标题栏外层包层）必须调 `hitTestBehavior(HitTestMode.None)`，否则会拦下列表滚动手势。
 4. 系统栏配色：statusBarColor/navigationBarColor 设透明，statusBarContentColor/navigationBarContentColor 设深色（适配浅色底）。
-5. 档位状态：AppStorage + preferences 持久化，`@StorageLink` 联动即时生效。
+5. 开关状态：AppStorage + preferences 持久化（键 glassLevel，0=关 / 3=开；旧四档的 1/2 在 hydrate 时归一为 3），`@StorageLink` 联动即时生效。
 6. 底栏为悬浮圆角胶囊（margin 16、padding 8、圆角 32、shadow、高光描边），避让小白条 12vp + 安全区。
 7. **属性顺序规则（官方文档）**：`backgroundColor` 必须写在 `systemMaterial` 之前——同设时后设置的生效，背景色写在材质之后会整段覆盖材质模糊，磨砂将不可见。此规则作为 GlassTheme 的调用约定，禁止颠倒。
 

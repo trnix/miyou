@@ -9,10 +9,9 @@ import { GlassTheme } from './GlassTheme';
 @Component
 export struct MineTab {
   @StorageLink('cookie') cookie: string = '';
-  @StorageLink('glassLevel') glassLevel: number = 2;
+  @StorageLink('glassLevel') glassLevel: number = 3;
   @State probeResult: string = '尚未探活。探活为三段式诊断：全头 / 裸请求 / bbs 用户态对照。';
   @State probing: boolean = false;
-  private glassLabels: string[] = ['关闭', '弱', '中', '强'];
 
   private trimMsg(s: string): string {
     return s.length > 160 ? s.substring(0, 160) + '…' : s;
@@ -116,18 +115,19 @@ export struct MineTab {
         .borderRadius(16)
 
         Column({ space: 10 }) {
-          Text('光感强度').fontSize(15).fontWeight(FontWeight.Medium)
-          Row({ space: 8 }) {
-            ForEach(this.glassLabels, (label: string, idx: number) => {
-              Button(label)
-                .layoutWeight(1)
-                .backgroundColor(this.glassLevel === idx ? '#1570EF' : '#E4E7EC')
-                .fontColor(this.glassLevel === idx ? '#FFFFFF' : '#344054')
-                .onClick(() => GlassTheme.setLevel(idx))
-            })
+          Row() {
+            Text('沉浸光感')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+            Blank()
+            Toggle({ type: ToggleType.Switch, isOn: this.glassLevel > 0 })
+              .selectedColor('#1570EF')
+              .onChange((isOn: boolean) => {
+                GlassTheme.setLevel(isOn ? 3 : 0)
+              })
           }
           .width('100%')
-          Text('顶栏与底栏的玻璃拟态强度，切换即时生效')
+          Text('顶栏与底栏的沉浸玻璃拟态效果，开关即时生效')
             .fontSize(12)
             .fontColor('#667085')
         }

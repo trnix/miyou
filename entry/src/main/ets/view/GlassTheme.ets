@@ -1,5 +1,6 @@
-// 光感玻璃主题：档位状态与官方沉浸光感材质生成。
-// 档位：0 关闭 / 1 弱 / 2 中（默认）/ 3 强。
+// 光感玻璃主题：沉浸光感开关状态与官方沉浸光感材质生成。
+// 开关语义（v1.3 起）：0 = 关闭；3 = 开启（THICK 强档）。
+// 历史四档（0/1/2/3）中 1/2 实测视觉差异不可辨，已下线；hydrate 时将旧值 1/2 归一为 3。
 // 权威依据（harmonyos 官方 API 参考 arkts-apis-uimaterial / ts-universal-attributes-image-effect）：
 //   ImmersiveStyle 五档 = ULTRA_THIN / THIN / REGULAR / THICK / ULTRA_THICK；
 //   普通 ArkUI 组件挂 .systemMaterial(new uiMaterial.ImmersiveMaterial(...))；
@@ -7,7 +8,7 @@
 //   systemMaterial 与 backgroundColor/border 同设时「后设置的生效」——因此调用方必须
 //   把 backgroundColor 写在 systemMaterial 之前、border 等装饰写在其后，
 //   否则后设的纯色会覆盖材质的背景效果（顶栏曾因此磨砂消失，已修复）。
-//   materialColor 为纯不透明色时会遮住材质层滤镜——利用它实现「关闭」档。
+//   materialColor 为纯不透明色时会遮住材质层滤镜——利用它实现「关闭」态。
 //   能力探测沿用官方最佳实践：hdsMaterial.getSystemMaterialTypes() 查询可用材质。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
@@ -23,7 +24,7 @@ export class GlassTheme {
 
   static level(): number {
     const stored = AppStorage.get<number>(KEY_GLASS);
-    return stored !== undefined ? stored : 2;
+    return stored !== undefined ? stored : 3;
   }
 
   static setLevel(level: number): void {
@@ -44,10 +45,16 @@ export class GlassTheme {
     GlassTheme.ctx = context;
     try {
       const store = preferences.getPreferencesSync(context, { name: STORE });
-      const v = store.getSync(KEY_GLASS, 2) as number;
+      let v = store.getSync(KEY_GLASS, 3) as number;
+      if (v !== 0 && v !== 3) {
+        // 旧四档的 1/2 归一到「开」（3），与新开关语义对齐。
+        v = 3;
+        store.putSync(KEY_GLASS, v);
+        store.flush();
+      }
       AppStorage.setOrCreate(KEY_GLASS, v);
     } catch (e) {
-      AppStorage.setOrCreate(KEY_GLASS, 2);
+      AppStorage.setOrCreate(KEY_GLASS, 3);
     }
     setTimeout(() => GlassTheme.probeSupport(), 0);
   }
@@ -70,19 +77,8 @@ export class GlassTheme {
         materialColor: '#FFF7F8FA'
       });
     }
-    let style: uiMaterial.ImmersiveStyle;
-    switch (level) {
-      case 1:
-        style = uiMaterial.ImmersiveStyle.ULTRA_THIN;
-        break;
-      case 3:
-        style = uiMaterial.ImmersiveStyle.THICK;
-        break;
-      default:
-        style = uiMaterial.ImmersiveStyle.REGULAR;
-    }
     return new uiMaterial.ImmersiveMaterial({
-      style: style,
+      style: uiMaterial.ImmersiveStyle.THICK,
       interactive: true,
       lightEffect: { color: Color.White }
     });
