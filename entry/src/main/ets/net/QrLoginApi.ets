@@ -1,5 +1,6 @@
 import { MysHttp } from './MysHttp';
 import { DeviceIdentity } from '../auth/DeviceIdentity';
+import { Session } from '../auth/Session';
 
 export interface QrCreate {
   ok: boolean;
@@ -13,9 +14,9 @@ export interface QrStatus {
   retcode: number;
   message: string;
   status: string; // pending ｜ scanned ｜ confirmed ｜ expired
-  pairs: string[]; // 已规范化的 cookie 片段（key=value）
-  hasToken: boolean; // 至少拿到一个真 token（stoken/ltoken/cookie_token），身份字段不算
-  debugText: string; // 结构级诊断：HTTP 码 / retcode / status 原值 / data 顶层键名，不含 token 值
+  pairs: string[];
+  hasToken: boolean;
+  debugText: string;
 }
 
 function asStr(v: Object | undefined): string {
@@ -49,8 +50,6 @@ function isCredential(name: string): boolean {
   return CREDENTIAL_NAMES.indexOf(name) !== -1;
 }
 
-// Set-Cookie 可能是逗号连接的多个值，而 Expires 属性本身含逗号；
-// 只在「逗号空格 + 紧跟合法键名」处被视为新 cookie 起点。
 function splitSetCookie(text: string, out: string[]): void {
   const parts = text.split(', ');
   let current = '';
@@ -75,7 +74,6 @@ function splitSetCookie(text: string, out: string[]): void {
   }
 }
 
-// 从响应头提取凭据 cookie（只在本机使用，绝不进展示层）。
 function credentialPairsFromHeader(headerText: string, out: string[], onToken: () => void): void {
   if (headerText === '') {
     return;
@@ -116,21 +114,19 @@ function credentialPairsFromHeader(headerText: string, out: string[], onToken: (
       });
     }
   } catch (e) {
-    // 头解析失败不影响主流程
   }
 }
 
-// 米游社扫码登录（通行证）。头组参照仍在维护的上游实现 dsh-mys-checkin：
-// App 通道（app_id=ddxf5dufpuyo / client_type=3 / HYPContainer）优先，失败回退 Web 通道；
-// 凭据来自两处：确认响应 tokens 内联数组（token_type: 1/2/4）+ Set-Cookie。
-// 过期码：-3501/-3505（新线）与 -106（旧线）。
+// 米游社扫码登录（通行证）。头组参照 dsh-mys-checkin：**所有请求都带 Session Cookie**
+//（让服务器把二维码归属到当前登录态），App 通道优先，失败回退 Web 通道；
+// 凭据来源：确认响应 tokens 内联数组 + Set-Cookie。过期码：-3501/-3505/-106。
 class QrLoginApi {
   private static readonly APP_VERSION: string = '2.109.0';
   private static readonly BASE_APP: string = 'https://passport-api.mihoyo.com/account/ma-cn-passport/app';
   private static readonly BASE_WEB: string = 'https://passport-api.miyoushe.com/account/ma-cn-passport/web';
 
   private static baseHeaders(): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'User-Agent': `Mozilla/5.0 (Linux; Android 12; Unspecified Device) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/${QrLoginApi.APP_VERSION}`,
       'Accept': 'application/json, text/plain, */*',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
@@ -142,6 +138,11 @@ class QrLoginApi {
       'x-rpc-channel': 'miyousheluodi',
       'x-rpc-sys_version': '12'
     };
+    const cookie = Session.cookie();
+    if (cookie.length > 0) {
+      headers['Cookie'] = cookie;
+    }
+    return headers;
   }
 
   private static headers(flow: string): Record<string, string> {
@@ -184,7 +185,6 @@ class QrLoginApi {
     }
   }
 
-  // App 通道优先；创建失败回退 Web 通道。
   static async create(): Promise<QrCreate> {
     const app = await QrLoginApi.createFlow('app');
     if (app.ok) {
@@ -232,10 +232,6 @@ class QrLoginApi {
         result.status = 'expired';
         return result;
       }
-      if (status === 'scanned' || status === 'scannedwaitingconfirmation') {
-        result.status = 'scanned';
-        return result;
-      }
       if (status === 'confirmed') {
         result.status = 'confirmed';
         const tokens = data['tokens'];
@@ -260,7 +256,11 @@ class QrLoginApi {
         }
         return result;
       }
-      // Init/Created/未知状态维持 pending，诊断行保留原值供观察
+      // 扫描中/等待确认：任何含 scan 的状态都归入 scanned（页面只显示状态，不中断轮询）
+      if (status.indexOf('scan') === 0) {
+        result.status = 'scanned';
+        return result;
+      }
     } catch (e) {
       result.debugText = `HTTP ${httpCode} · 解析失败（响应不是预期 JSON）`;
     }

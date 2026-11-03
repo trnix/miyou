@@ -3,8 +3,8 @@ import { QrLoginApi, QrStatus } from '../net/QrLoginApi';
 import { Session } from '../auth/Session';
 import { GlassTheme } from '../view/GlassTheme';
 
-// R4.1 扫码登录：生成 → 轮询（1.5s）→ 确认写入。每轮轮询出结构级诊断行（无 token 明文），
-// expired 自动刷新；请求批次号防止旧响应竞态；确认态必须拿到真 token 才落库，且整体替换会话（防跨账号残留）。
+// R4.2 扫码登录：二维码票证提升到 AppStorage（`qrSession`），页面重建（扫码相机切前后台）
+// 等不打断扫码流程——重建后续用同一张票，恢复轮询，直到 expired 或 confirmed。
 @Entry
 @Component
 struct QrLoginPage {
@@ -26,11 +26,26 @@ struct QrLoginPage {
   }
 
   aboutToAppear(): void {
+    // 已有未过期票证直接续用，不重建二维码
+    const saved = AppStorage.get<string>('qrSession');
+    if (saved && saved.length > 0) {
+      const idx = saved.indexOf('|');
+      if (idx > 0) {
+        this.flow = saved.substring(0, idx);
+        this.ticket = saved.substring(idx + 1);
+        this.qrUrl = ''; // URL 从上次页的内存已失，需重新生成；但票仍有效，让用户扫原图即可
+        this.generating = false;
+        this.statusText = '请使用米游社 App 扫码（或者点下方刷新）';
+        this.debugText = `通道：${this.flow} · 恢复上轮票证`;
+        this.pollCount = 0;
+        this.resumePoll();
+        return;
+      }
+    }
     this.start();
   }
 
   aboutToDisappear(): void {
-    this.epoch++;
     this.stopPoll();
   }
 
@@ -41,16 +56,25 @@ struct QrLoginPage {
     }
   }
 
+  private resumePoll(): void {
+    this.stopPoll();
+    this.timer = setInterval(() => {
+      this.poll();
+    }, 1500);
+  }
+
   private async start(): Promise<void> {
     this.epoch++;
     const epoch = this.epoch;
     this.stopPoll();
     this.ticket = '';
+    this.flow = 'app';
     this.qrUrl = '';
     this.pollCount = 0;
     this.generating = true;
     this.statusText = '正在生成二维码…';
     this.debugText = '';
+    AppStorage.setOrCreate('qrSession', ''); // 新流程，清空旧票
     try {
       const r = await QrLoginApi.create();
       if (epoch !== this.epoch) {
@@ -67,9 +91,8 @@ struct QrLoginPage {
       this.generating = false;
       this.statusText = '请使用米游社 App 扫码';
       this.debugText = `通道：${r.flow}`;
-      this.timer = setInterval(() => {
-        this.poll();
-      }, 1500);
+      AppStorage.setOrCreate('qrSession', `${r.flow}|${r.ticket}`);
+      this.resumePoll();
     } catch (e) {
       if (epoch === this.epoch) {
         this.generating = false;
@@ -92,7 +115,7 @@ struct QrLoginPage {
       this.pollCount++;
       this.debugText = `#${this.pollCount} ${s.debugText}`;
       if (s.status === 'expired') {
-        this.start(); // 二维码过期，自动刷新后继续轮询
+        this.start(); // 过期自动刷新
         return;
       }
       if (s.status === 'scanned') {
@@ -112,6 +135,7 @@ struct QrLoginPage {
 
   private async finish(s: QrStatus): Promise<void> {
     this.stopPoll();
+    AppStorage.setOrCreate('qrSession', '');
     if (!s.hasToken) {
       this.statusText = '确认响应缺少登录凭据，请重试';
       this.ticket = '';
@@ -119,7 +143,6 @@ struct QrLoginPage {
       return;
     }
     this.statusText = '登录成功，正在写入凭据…';
-    // 整体替换会话：不再与旧 Cookie 合并，防止跨账号身份残留
     Session.save(s.pairs.join('; '));
     this.statusText = '登录成功';
     router.back();
@@ -167,9 +190,9 @@ struct QrLoginPage {
               .width(240)
               .height(240)
           } else {
-            Text('!')
+            Text('?')
               .fontSize(32)
-              .fontColor('#F04438')
+              .fontColor('#98A2B3')
               .width(240)
               .height(240)
               .textAlign(TextAlign.Center)
