@@ -1,7 +1,7 @@
 import { GlassTheme } from '../view/GlassTheme';
 import { MineTab } from '../view/MineTab';
 import { HomeTab } from '../view/HomeTab';
-import { uiMaterial } from '@kit.ArkUI';
+import { SearchTab } from '../view/SearchTab';
 
 @Entry
 @Component
@@ -21,90 +21,54 @@ struct AppShell {
   PlaceholderTab(title: string, desc: string) {
     Column({ space: 10 }) {
       Text(title).fontSize(22).fontWeight(FontWeight.Medium)
-      Text(desc)
-        .fontSize(13)
-        .fontColor('#667085')
-        .textAlign(TextAlign.Center)
-        .lineHeight(20)
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .padding(24)
+      Text(desc).fontSize(13).fontColor('#667085').textAlign(TextAlign.Center).lineHeight(20)
+    }.width('100%').height('100%').justifyContent(FlexAlign.Center).padding(24)
   }
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      Column() {
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor('#F7F8FA')
-
+      Column() {}.width('100%').height('100%').backgroundColor('#F7F8FA')
       Stack() {
         if (this.currentTab === 0) {
           HomeTab()
         } else {
           Column() {
             if (this.currentTab === 1) {
-              this.PlaceholderTab('社区', '版区浏览将在后续里程碑接入\n（官方资讯 / 攻略 / 同人 / 酒馆）')
+              SearchTab()
             } else if (this.currentTab === 2) {
-              this.PlaceholderTab('消息', '消息中心已从规划中移除\n评论、点赞等互动通知请使用官方 App\n（私信为官方自研协议，通知接口未对外开放）')
+              this.PlaceholderTab('消息', '消息中心暂不开发，请使用官方 App 查看互动通知')
             } else {
               MineTab()
             }
-          }
-          .width('100%')
-          .height('100%')
-          .padding({ top: this.topBar + this.vp(this.safeTopPx) })
+          }.width('100%').height('100%').padding({ top: this.topBar + this.vp(this.safeTopPx) })
         }
-      }
-      .width('100%')
-      .height('100%')
-
+      }.width('100%').height('100%')
       Column() {
         Row() {
           Text('米柚').fontSize(20).fontWeight(FontWeight.Bold)
           Blank()
           Text(this.tabTitles[this.currentTab]).fontSize(14).fontColor('#667085')
-        }
-        .width('100%')
-        .height(this.topBar + this.vp(this.safeTopPx))
-        .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
-        .backgroundColor(GlassTheme.barColor(this.glassLevel))
-        .systemMaterial(GlassTheme.material(this.glassLevel))
-        .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
-      }
-      .width('100%')
-      .height('100%')
-      .hitTestBehavior(HitTestMode.None)
-
+        }.width('100%').height(this.topBar + this.vp(this.safeTopPx))
+          .padding({ top: this.vp(this.safeTopPx), left: 16, right: 16 })
+          .backgroundColor(GlassTheme.barColor(this.glassLevel))
+          .systemMaterial(GlassTheme.material(this.glassLevel))
+          .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
+      }.width('100%').height('100%').hitTestBehavior(HitTestMode.None)
       Row() {
         ForEach(this.tabTitles, (title: string, idx: number) => {
           Column() {
-            Text(title)
-              .fontSize(13)
+            Text(title).fontSize(13)
               .fontColor(this.currentTab === idx ? '#1570EF' : '#667085')
               .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
-          }
-          .layoutWeight(1)
-          .padding({ top: 14, bottom: 14 })
-          .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000')
-          .borderRadius(24)
-          .onClick(() => {
-            this.currentTab = idx;
-          })
+          }.layoutWeight(1).padding({ top: 14, bottom: 14 })
+            .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000').borderRadius(24)
+            .onClick(() => { this.currentTab = idx; })
         })
-      }
-      .margin({ left: 16, right: 16, bottom: this.vp(this.safeBottomPx) })
-      .padding(8)
-      .backgroundColor(GlassTheme.barColor(this.glassLevel))
-      .systemMaterial(GlassTheme.material(this.glassLevel))
-      .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
-      .borderRadius(32)
-      .shadow({ radius: 24, color: '#26000000', offsetY: 8 })
-    }
-    .width('100%')
-    .height('100%')
+      }.margin({ left: 16, right: 16, bottom: this.vp(this.safeBottomPx) }).padding(8)
+        .backgroundColor(GlassTheme.barColor(this.glassLevel))
+        .systemMaterial(GlassTheme.material(this.glassLevel))
+        .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
+        .borderRadius(32).shadow({ radius: 24, color: '#26000000', offsetY: 8 })
+    }.width('100%').height('100%')
   }
 }
