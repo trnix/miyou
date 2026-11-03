@@ -21,6 +21,11 @@ export interface RepliesResult {
   isLast: boolean;
 }
 
+interface ExtractedContent {
+  text: string;
+  images: string[];
+}
+
 function asStr(v: Object | undefined): string {
   if (typeof v === 'string') {
     return v;
@@ -54,7 +59,7 @@ function relTime(ts: number): string {
 }
 
 // 从评论 content 提取纯文本与图片 URL；content 形态：纯文本 / HTML / JSON 字符串
-function extractContent(raw: string): { text: string; images: string[] } {
+function extractContent(raw: string): ExtractedContent {
   const images: string[] = [];
   let text = raw.trim();
   // JSON 形态：{"describe":"...","imgs":[...]} 或类似
