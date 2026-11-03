@@ -3,8 +3,8 @@ import { QrLoginApi, QrStatus } from '../net/QrLoginApi';
 import { Session } from '../auth/Session';
 import { GlassTheme } from '../view/GlassTheme';
 
-// R4.2 扫码登录：二维码票证提升到 AppStorage（`qrSession`），页面重建（扫码相机切前后台）
-// 等不打断扫码流程——重建后续用同一张票，恢复轮询，直到 expired 或 confirmed。
+// R4.3 扫码登录：通道由页面手动选择（默认 web=米游社登录；app=米哈游启动器登录，一般不用于米柚）。
+// 票证持久化在 AppStorage（含 flow|ticket|url），页面重建后二维码可恢复显示，轮询不中断。
 @Entry
 @Component
 struct QrLoginPage {
@@ -14,8 +14,8 @@ struct QrLoginPage {
   @State statusText: string = '正在生成二维码…';
   @State debugText: string = '';
   @State generating: boolean = true;
+  @State flow: string = 'web'; // 默认官方米游社登录通道
   private ticket: string = '';
-  private flow: string = 'app';
   private timer: number = -1;
   private polling: boolean = false;
   private epoch: number = 0;
@@ -26,14 +26,14 @@ struct QrLoginPage {
   }
 
   aboutToAppear(): void {
-    // 已有未过期票证直接续用，不重建二维码
+    // 已有未过期票证直接续用（含二维码 URL，页面重建也能恢复显示）
     const saved = AppStorage.get<string>('qrSession');
     if (saved && saved.length > 0) {
-      const idx = saved.indexOf('|');
-      if (idx > 0) {
-        this.flow = saved.substring(0, idx);
-        this.ticket = saved.substring(idx + 1);
-        this.qrUrl = ''; // URL 从上次页的内存已失，需重新生成；但票仍有效，让用户扫原图即可
+      const parts = saved.split('|');
+      if (parts.length === 3) {
+        this.flow = parts[0];
+        this.ticket = parts[1];
+        this.qrUrl = parts[2];
         this.generating = false;
         this.statusText = '请使用米游社 App 扫码（或者点下方刷新）';
         this.debugText = `通道：${this.flow} · 恢复上轮票证`;
@@ -68,7 +68,6 @@ struct QrLoginPage {
     const epoch = this.epoch;
     this.stopPoll();
     this.ticket = '';
-    this.flow = 'app';
     this.qrUrl = '';
     this.pollCount = 0;
     this.generating = true;
@@ -76,7 +75,7 @@ struct QrLoginPage {
     this.debugText = '';
     AppStorage.setOrCreate('qrSession', ''); // 新流程，清空旧票
     try {
-      const r = await QrLoginApi.create();
+      const r = await QrLoginApi.create(this.flow);
       if (epoch !== this.epoch) {
         return;
       }
@@ -86,12 +85,11 @@ struct QrLoginPage {
         return;
       }
       this.ticket = r.ticket;
-      this.flow = r.flow;
       this.qrUrl = r.url;
       this.generating = false;
       this.statusText = '请使用米游社 App 扫码';
       this.debugText = `通道：${r.flow}`;
-      AppStorage.setOrCreate('qrSession', `${r.flow}|${r.ticket}`);
+      AppStorage.setOrCreate('qrSession', `${r.flow}|${r.ticket}|${r.url}`);
       this.resumePoll();
     } catch (e) {
       if (epoch === this.epoch) {
@@ -178,6 +176,42 @@ struct QrLoginPage {
 
       Column({ space: 16 }) {
         Column({ space: 16 }) {
+          // 通道选择：默认 web（米游社登录），明确需要游戏登录时才切 app
+          Row({ space: 10 }) {
+            Text('登录通道')
+              .fontSize(13)
+              .fontColor('#667085')
+            Row({ space: 8 }) {
+              Text('米游社')
+                .fontSize(13)
+                .fontColor(this.flow === 'web' ? '#1570EF' : '#667085')
+                .fontWeight(this.flow === 'web' ? FontWeight.Medium : FontWeight.Normal)
+                .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                .backgroundColor(this.flow === 'web' ? '#2B1570EF' : '#00000000')
+                .borderRadius(14)
+                .onClick(() => {
+                  if (this.flow !== 'web') {
+                    this.flow = 'web';
+                    this.start();
+                  }
+                })
+              Text('启动器')
+                .fontSize(13)
+                .fontColor(this.flow === 'app' ? '#1570EF' : '#667085')
+                .fontWeight(this.flow === 'app' ? FontWeight.Medium : FontWeight.Normal)
+                .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                .backgroundColor(this.flow === 'app' ? '#2B1570EF' : '#00000000')
+                .borderRadius(14)
+                .onClick(() => {
+                  if (this.flow !== 'app') {
+                    this.flow = 'app';
+                    this.start();
+                  }
+                })
+            }
+          }
+          .width('100%')
+
           if (this.generating) {
             Text('…')
               .fontSize(32)

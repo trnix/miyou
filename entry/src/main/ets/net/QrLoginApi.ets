@@ -117,9 +117,10 @@ function credentialPairsFromHeader(headerText: string, out: string[], onToken: (
   }
 }
 
-// 米游社扫码登录（通行证）。头组参照 dsh-mys-checkin：**所有请求都带 Session Cookie**
-//（让服务器把二维码归属到当前登录态），App 通道优先，失败回退 Web 通道；
-// 凭据来源：确认响应 tokens 内联数组 + Set-Cookie。过期码：-3501/-3505/-106。
+// 米游社扫码登录（通行证）。通道由页面层显式选择：
+// web = 官方米游社登录（bll8iq97cem8 + client_type=4，官方文档 canonical 路径）；
+// app = 米哈游启动器登录（ddxf5dufpuyo + client_type=3，仅在你明确知道要游戏登录时用）。
+// 所有请求带 Session Cookie；凭据来源：确认响应 tokens + Set-Cookie。过期码：-3501/-3505/-106。
 class QrLoginApi {
   private static readonly APP_VERSION: string = '2.109.0';
   private static readonly BASE_APP: string = 'https://passport-api.mihoyo.com/account/ma-cn-passport/app';
@@ -159,7 +160,7 @@ class QrLoginApi {
     return flow === 'app' ? QrLoginApi.BASE_APP : QrLoginApi.BASE_WEB;
   }
 
-  private static async createFlow(flow: string): Promise<QrCreate> {
+  static async create(flow: string): Promise<QrCreate> {
     const fail: QrCreate = { ok: false, message: '网络异常', flow, ticket: '', url: '' };
     try {
       const raw = await MysHttp.postJson(`${QrLoginApi.base(flow)}/createQRLogin`, QrLoginApi.headers(flow), '{}');
@@ -183,18 +184,6 @@ class QrLoginApi {
     } catch (e) {
       return fail;
     }
-  }
-
-  static async create(): Promise<QrCreate> {
-    const app = await QrLoginApi.createFlow('app');
-    if (app.ok) {
-      return app;
-    }
-    const web = await QrLoginApi.createFlow('web');
-    if (web.ok) {
-      return web;
-    }
-    return { ok: false, message: `App 通道：${app.message}；Web 通道：${web.message}`, flow: 'app', ticket: '', url: '' };
   }
 
   static async query(ticket: string, flow: string): Promise<QrStatus> {
@@ -256,7 +245,6 @@ class QrLoginApi {
         }
         return result;
       }
-      // 扫描中/等待确认：任何含 scan 的状态都归入 scanned（页面只显示状态，不中断轮询）
       if (status.indexOf('scan') === 0) {
         result.status = 'scanned';
         return result;
