@@ -97,7 +97,7 @@ function parseDelta(sc: Record<string, Object>): PostBlock[] {
   return blocks;
 }
 
-// PIC：describe 文本 + imgs[] 数组
+// PIC：describe 文本 + imgs[] 数组（元素可能是字符串 URL 或 {url} 对象）
 function parsePic(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const desc = asStr(sc['describe']);
@@ -107,7 +107,13 @@ function parsePic(sc: Record<string, Object>): PostBlock[] {
   const imgs = sc['imgs'];
   if (Array.isArray(imgs)) {
     (imgs as Object[]).forEach((iv: Object) => {
-      const u = asStr((iv as Record<string, Object>)['url']);
+      // 兼容两种元素形态：纯字符串 URL 或 {url: '...'} 对象
+      let u = '';
+      if (typeof iv === 'string') {
+        u = iv;
+      } else if (typeof iv === 'object' && iv !== null) {
+        u = asStr((iv as Record<string, Object>)['url']);
+      }
       if (u !== '') {
         blocks.push(imageBlock(u));
       }
@@ -226,7 +232,7 @@ export class PostModels {
         const st = post['post_status'] as Record<string, Object> | undefined;
         isOfficial = st ? asBool(st['is_official']) : false;
 
-        // 结构化正文归一
+        // 结构化正文归一：structured_content 可能是字符串（需先 JSON.parse）或对象
         const scRaw = post['structured_content'];
         let sc: Record<string, Object> | null = null;
         if (typeof scRaw === 'string' && scRaw.trim() !== '') {
@@ -239,12 +245,12 @@ export class PostModels {
           sc = scRaw as Record<string, Object>;
         }
         if (sc !== null) {
-          const viewType = asStr(sc['view_type']);
-          if (viewType === 'VIEW_TYPE_NORMAL' || sc['ops'] !== undefined) {
+          // 按对象键判断形态，不依赖 view_type 字符串值（字符串解析后该键可能不在顶层）
+          if (sc['ops'] !== undefined) {
             blocks = parseDelta(sc);
-          } else if (viewType === 'VIEW_TYPE_PIC' || sc['imgs'] !== undefined) {
+          } else if (sc['imgs'] !== undefined) {
             blocks = parsePic(sc);
-          } else if (viewType === 'VIEW_TYPE_UGC' || sc['images'] !== undefined) {
+          } else if (sc['images'] !== undefined) {
             blocks = parseUgc(sc);
           }
         }

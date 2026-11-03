@@ -1,5 +1,6 @@
 // getPostReplies 评论模型与防御性解析。
 // 只取主楼评论（楼中楼展开归 R6）；字段缺失不崩，list 缺失为空数组。
+// content 可能是纯文本、HTML，或内嵌 JSON（图片/表情包），统一提取为纯文本 + 图片列表。
 
 export interface ReplyItem {
   replyId: string;
@@ -7,6 +8,7 @@ export interface ReplyItem {
   avatar: string;
   timeText: string;
   content: string;
+  images: string[];
   likeNum: number;
   subReplyCount: number;
 }
@@ -51,6 +53,68 @@ function relTime(ts: number): string {
   return `${mm}-${dd}`;
 }
 
+// 从评论 content 提取纯文本与图片 URL；content 形态：纯文本 / HTML / JSON 字符串
+function extractContent(raw: string): { text: string; images: string[] } {
+  const images: string[] = [];
+  let text = raw.trim();
+  // JSON 形态：{"describe":"...","imgs":[...]} 或类似
+  if (text.startsWith('{') && text.endsWith('}')) {
+    try {
+      const obj = JSON.parse(text) as Record<string, Object>;
+      const desc = asStr(obj['describe']);
+      if (desc !== '') {
+        text = desc;
+      }
+      const imgs = obj['imgs'];
+      if (Array.isArray(imgs)) {
+        (imgs as Object[]).forEach((iv: Object) => {
+          let u = '';
+          if (typeof iv === 'string') {
+            u = iv;
+          } else if (typeof iv === 'object' && iv !== null) {
+            u = asStr((iv as Record<string, Object>)['url']);
+          }
+          if (u !== '') {
+            images.push(u);
+          }
+        });
+      }
+      return { text: text.trim(), images };
+    } catch (e) {
+      // 不是合法 JSON，按原文处理
+    }
+  }
+  // HTML 形态：剥标签取纯文本，<img src> 提取为图片
+  if (text.indexOf('<') >= 0 && text.indexOf('>') >= 0) {
+    let rest = text;
+    let out = '';
+    while (rest.length > 0) {
+      const imgIdx = rest.indexOf('<img');
+      if (imgIdx < 0) {
+        out += rest.replace(/<[^>]*>/g, '');
+        break;
+      }
+      out += rest.substring(0, imgIdx).replace(/<[^>]*>/g, '');
+      const tagEnd = rest.indexOf('>', imgIdx);
+      if (tagEnd < 0) {
+        break;
+      }
+      const tag = rest.substring(imgIdx, tagEnd);
+      const srcIdx = tag.indexOf('src="');
+      if (srcIdx >= 0) {
+        const q1 = srcIdx + 5;
+        const q2 = tag.indexOf('"', q1);
+        if (q2 > q1) {
+          images.push(tag.substring(q1, q2));
+        }
+      }
+      rest = rest.substring(tagEnd + 1);
+    }
+    text = out.replace(/<[^>]*>/g, '').trim();
+  }
+  return { text, images };
+}
+
 export class ReplyModels {
   static parse(raw: Object): RepliesResult {
     const obj = raw as Record<string, Object>;
@@ -76,12 +140,14 @@ export class ReplyModels {
             if (rid === '') {
               return;
             }
+            const extracted = extractContent(reply ? asStr(reply['content']) : '');
             replies.push({
               replyId: rid,
               author: user ? asStr(user['nickname']) : '',
               avatar: user ? asStr(user['avatar_url']) : '',
               timeText: relTime(reply ? asNum(reply['created_at']) : 0),
-              content: reply ? asStr(reply['content']) : '',
+              content: extracted.text,
+              images: extracted.images,
               likeNum: reply ? asNum(reply['like_num']) : 0,
               subReplyCount: reply ? asNum(reply['sub_reply_count']) : 0
             });

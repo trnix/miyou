@@ -188,6 +188,21 @@ struct PostDetailPage {
           .lineHeight(21)
           .width('100%')
       }
+      // 评论内嵌图片（JSON/HTML 提取的 imgs）
+      if (item.images.length > 0) {
+        ForEach(item.images, (imgUrl: string) => {
+          Image(imgUrl)
+            .width('100%')
+            .borderRadius(8)
+            .objectFit(ImageFit.Cover)
+            .constraintSize({ maxHeight: 300 })
+            .margin({ top: 6 })
+            .onClick(() => {
+              this.previewUrl = imgUrl;
+              this.showPreview = true;
+            })
+        })
+      }
       if (item.subReplyCount > 0) {
         Text(`共 ${item.subReplyCount} 条回复`)
           .fontSize(12)
