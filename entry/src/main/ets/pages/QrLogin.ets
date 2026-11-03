@@ -3,8 +3,8 @@ import { QrLoginApi, QrStatus } from '../net/QrLoginApi';
 import { Session } from '../auth/Session';
 import { GlassTheme } from '../view/GlassTheme';
 
-// R4 扫码登录：生成二维码 → 轮询状态（1.5s）→ 确认后写入凭据。
-// 过期（expired）自动刷新；凭据来自确认响应的 tokens + user_info，无存根换发步骤。
+// R4.1 扫码登录：生成 → 轮询（1.5s）→ 确认写入。每轮轮询出结构级诊断行（无 token 明文），
+// expired 自动刷新；请求批次号防止旧响应竞态；确认态必须拿到真 token 才落库，且整体替换会话（防跨账号残留）。
 @Entry
 @Component
 struct QrLoginPage {
@@ -12,11 +12,14 @@ struct QrLoginPage {
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @State qrUrl: string = '';
   @State statusText: string = '正在生成二维码…';
+  @State debugText: string = '';
   @State generating: boolean = true;
   private ticket: string = '';
   private flow: string = 'app';
   private timer: number = -1;
   private polling: boolean = false;
+  private epoch: number = 0;
+  private pollCount: number = 0;
 
   private vp(px: number): number {
     return this.getUIContext().px2vp(px);
@@ -27,6 +30,7 @@ struct QrLoginPage {
   }
 
   aboutToDisappear(): void {
+    this.epoch++;
     this.stopPoll();
   }
 
@@ -38,13 +42,20 @@ struct QrLoginPage {
   }
 
   private async start(): Promise<void> {
+    this.epoch++;
+    const epoch = this.epoch;
     this.stopPoll();
     this.ticket = '';
     this.qrUrl = '';
+    this.pollCount = 0;
     this.generating = true;
     this.statusText = '正在生成二维码…';
+    this.debugText = '';
     try {
       const r = await QrLoginApi.create();
+      if (epoch !== this.epoch) {
+        return;
+      }
       if (!r.ok) {
         this.generating = false;
         this.statusText = `二维码生成失败\n${r.message}`;
@@ -55,12 +66,15 @@ struct QrLoginPage {
       this.qrUrl = r.url;
       this.generating = false;
       this.statusText = '请使用米游社 App 扫码';
+      this.debugText = `通道：${r.flow}`;
       this.timer = setInterval(() => {
         this.poll();
       }, 1500);
     } catch (e) {
-      this.generating = false;
-      this.statusText = '网络异常，请检查网络后重试';
+      if (epoch === this.epoch) {
+        this.generating = false;
+        this.statusText = '网络异常，请检查网络后重试';
+      }
     }
   }
 
@@ -69,8 +83,14 @@ struct QrLoginPage {
       return;
     }
     this.polling = true;
+    const epoch = this.epoch;
     try {
       const s: QrStatus = await QrLoginApi.query(this.ticket, this.flow);
+      if (epoch !== this.epoch) {
+        return;
+      }
+      this.pollCount++;
+      this.debugText = `#${this.pollCount} ${s.debugText}`;
       if (s.status === 'expired') {
         this.start(); // 二维码过期，自动刷新后继续轮询
         return;
@@ -81,10 +101,10 @@ struct QrLoginPage {
         await this.finish(s);
         return;
       } else if (s.retcode !== 0) {
-        this.statusText = `状态查询异常（${s.retcode} ${s.message}），重试中…`;
+        this.statusText = `状态查询异常（${s.retcode}），重试中…`;
       }
     } catch (e) {
-      // 单次轮询失败忽略，等待下一轮
+      this.debugText = `#${this.pollCount} 请求异常，等待下一轮`;
     } finally {
       this.polling = false;
     }
@@ -92,16 +112,15 @@ struct QrLoginPage {
 
   private async finish(s: QrStatus): Promise<void> {
     this.stopPoll();
-    if (s.pairs.length === 0) {
-      this.statusText = '登录确认但凭据不完整，请重试';
+    if (!s.hasToken) {
+      this.statusText = '确认响应缺少登录凭据，请重试';
       this.ticket = '';
       this.qrUrl = '';
       return;
     }
     this.statusText = '登录成功，正在写入凭据…';
-    const extra = s.pairs.join('; ');
-    const existing = Session.cookie();
-    Session.save(existing.length > 0 ? `${existing}; ${extra}` : extra);
+    // 整体替换会话：不再与旧 Cookie 合并，防止跨账号身份残留
+    Session.save(s.pairs.join('; '));
     this.statusText = '登录成功';
     router.back();
   }
@@ -165,6 +184,14 @@ struct QrLoginPage {
             .fontColor('#98A2B3')
             .textAlign(TextAlign.Center)
             .lineHeight(18)
+          if (this.debugText !== '') {
+            Text(this.debugText)
+              .fontSize(11)
+              .fontColor('#98A2B3')
+              .textAlign(TextAlign.Center)
+              .lineHeight(16)
+              .copyOption(CopyOptions.LocalDevice)
+          }
           Button('刷新二维码')
             .onClick(() => this.start())
         }

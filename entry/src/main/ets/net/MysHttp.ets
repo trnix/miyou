@@ -6,6 +6,7 @@ import { Session } from '../auth/Session';
 export interface RawResult {
   httpCode: number;
   body: string;
+  headerText: string; // 响应头 JSON 序列化；供上层解析 Set-Cookie 等，界面不得直接展示（可能含凭据）
 }
 
 // 统一请求封装：x-rpc 基线头 + device 身份 + 可选 Cookie。
@@ -30,6 +31,14 @@ export class MysHttp {
     return headers;
   }
 
+  private static toHeaderText(header: Object): string {
+    try {
+      return JSON.stringify(header);
+    } catch (e) {
+      return '';
+    }
+  }
+
   static async request(url: string, headers: Record<string, string>): Promise<RawResult> {
     const req = http.createHttp();
     try {
@@ -41,7 +50,7 @@ export class MysHttp {
         readTimeout: 10000
       });
       const body = typeof res.result === 'string' ? res.result : JSON.stringify(res.result);
-      return { httpCode: res.responseCode, body };
+      return { httpCode: res.responseCode, body, headerText: MysHttp.toHeaderText(res.header) };
     } finally {
       req.destroy();
     }
@@ -60,7 +69,7 @@ export class MysHttp {
         readTimeout: 10000
       });
       const text = typeof res.result === 'string' ? res.result : JSON.stringify(res.result);
-      return { httpCode: res.responseCode, body: text };
+      return { httpCode: res.responseCode, body: text, headerText: MysHttp.toHeaderText(res.header) };
     } finally {
       req.destroy();
     }

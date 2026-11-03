@@ -14,10 +14,16 @@ export interface QrStatus {
   message: string;
   status: string; // pending ｜ scanned ｜ confirmed ｜ expired
   pairs: string[]; // 已规范化的 cookie 片段（key=value）
+  hasToken: boolean; // 至少拿到一个真 token（stoken/ltoken/cookie_token），身份字段不算
+  debugText: string; // 结构级诊断：HTTP 码 / retcode / status 原值 / data 顶层键名，不含 token 值
 }
 
 function asStr(v: Object | undefined): string {
   return typeof v === 'string' ? v : '';
+}
+
+function trim(s: string, n: number): string {
+  return s.length > n ? s.substring(0, n) + '…' : s;
 }
 
 function addIdentity(pairs: string[], aid: string, mid: string): void {
@@ -31,10 +37,93 @@ function addIdentity(pairs: string[], aid: string, mid: string): void {
   }
 }
 
-// 米游社扫码登录（通行证），逐行对齐仍在维护的上游实现 dsh-mys-checkin（2026-10 发布）：
-// 通行证 QR 流程不签名（无 DS、无 device_fp）；App 通道（active Hyperion 身份）返回
-// tokens 内联数组（token_type: 1 stoken / 2 ltoken / 4 cookie_token，v2_ 前缀决定 _v2 键）；
-// App 通道创建失败时回退 Web 通道。过期码为 -3501/-3505。
+const CREDENTIAL_NAMES: string[] = [
+  'ltoken_v2', 'ltoken', 'ltuid_v2', 'ltuid', 'ltmid_v2',
+  'stoken_v2', 'stoken', 'stuid', 'mid',
+  'cookie_token_v2', 'cookie_token',
+  'account_id_v2', 'account_mid_v2', 'account_id',
+  'login_ticket', 'login_uid'
+];
+
+function isCredential(name: string): boolean {
+  return CREDENTIAL_NAMES.indexOf(name) !== -1;
+}
+
+// Set-Cookie 可能是逗号连接的多个值，而 Expires 属性本身含逗号；
+// 只在「逗号空格 + 紧跟合法键名」处被视为新 cookie 起点。
+function splitSetCookie(text: string, out: string[]): void {
+  const parts = text.split(', ');
+  let current = '';
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const eq = part.indexOf('=');
+    const head = eq > 0 ? part.substring(0, eq) : '';
+    const first = head.length > 0 ? head.charCodeAt(0) : 0;
+    const isAlpha = (first >= 65 && first <= 90) || (first >= 97 && first <= 122);
+    const looksNew = eq > 0 && head.indexOf(' ') === -1 && isAlpha;
+    if (looksNew && current !== '') {
+      out.push(current);
+      current = part;
+    } else if (looksNew) {
+      current = part;
+    } else {
+      current = current === '' ? part : `${current}, ${part}`;
+    }
+  }
+  if (current !== '') {
+    out.push(current);
+  }
+}
+
+// 从响应头提取凭据 cookie（只在本机使用，绝不进展示层）。
+function credentialPairsFromHeader(headerText: string, out: string[], onToken: () => void): void {
+  if (headerText === '') {
+    return;
+  }
+  try {
+    const obj = JSON.parse(headerText) as Record<string, Object>;
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i].toLowerCase() !== 'set-cookie') {
+        continue;
+      }
+      const lines: string[] = [];
+      const v = obj[keys[i]];
+      if (typeof v === 'string') {
+        splitSetCookie(v, lines);
+      } else if (Array.isArray(v)) {
+        (v as Object[]).forEach((item: Object) => {
+          if (typeof item === 'string') {
+            splitSetCookie(item as string, lines);
+          }
+        });
+      }
+      lines.forEach((line: string) => {
+        const head = line.split(';')[0].trim();
+        const eq = head.indexOf('=');
+        if (eq <= 0) {
+          return;
+        }
+        const name = head.substring(0, eq);
+        const value = head.substring(eq + 1);
+        if (isCredential(name) && value !== '') {
+          out.push(`${name}=${value}`);
+          if (name === 'stoken' || name === 'stoken_v2' || name === 'ltoken' || name === 'ltoken_v2' ||
+            name === 'cookie_token' || name === 'cookie_token_v2') {
+            onToken();
+          }
+        }
+      });
+    }
+  } catch (e) {
+    // 头解析失败不影响主流程
+  }
+}
+
+// 米游社扫码登录（通行证）。头组参照仍在维护的上游实现 dsh-mys-checkin：
+// App 通道（app_id=ddxf5dufpuyo / client_type=3 / HYPContainer）优先，失败回退 Web 通道；
+// 凭据来自两处：确认响应 tokens 内联数组（token_type: 1/2/4）+ Set-Cookie。
+// 过期码：-3501/-3505（新线）与 -106（旧线）。
 class QrLoginApi {
   private static readonly APP_VERSION: string = '2.109.0';
   private static readonly BASE_APP: string = 'https://passport-api.mihoyo.com/account/ma-cn-passport/app';
@@ -78,7 +167,7 @@ class QrLoginApi {
       const retcode = typeof rc === 'number' ? rc : -1;
       const message = asStr(obj['message']);
       if (retcode !== 0) {
-        return { ok: false, message: `retcode ${retcode}（${message}）`, flow, ticket: '', url: '' };
+        return { ok: false, message: `HTTP ${raw.httpCode} · retcode ${retcode}（${trim(message, 60)}）`, flow, ticket: '', url: '' };
       }
       const data = obj['data'] as Record<string, Object> | undefined;
       if (!data) {
@@ -95,7 +184,7 @@ class QrLoginApi {
     }
   }
 
-  // App 通道优先（其二维码请求 SToken）；创建失败回退 Web 通道。
+  // App 通道优先；创建失败回退 Web 通道。
   static async create(): Promise<QrCreate> {
     const app = await QrLoginApi.createFlow('app');
     if (app.ok) {
@@ -109,27 +198,36 @@ class QrLoginApi {
   }
 
   static async query(ticket: string, flow: string): Promise<QrStatus> {
-    const result: QrStatus = { retcode: -1, message: '', status: 'pending', pairs: [] };
+    const result: QrStatus = { retcode: -1, message: '', status: 'pending', pairs: [], hasToken: false, debugText: '' };
     const body = JSON.stringify({ ticket });
     const url = `${QrLoginApi.base(flow)}/queryQRLoginStatus?ticket=${encodeURIComponent(ticket)}`;
+    let httpCode = 0;
     try {
       const raw = await MysHttp.postJson(url, QrLoginApi.headers(flow), body);
+      httpCode = raw.httpCode;
       const obj = JSON.parse(raw.body) as Record<string, Object>;
       const rc = obj['retcode'];
       result.retcode = typeof rc === 'number' ? rc : -1;
       result.message = asStr(obj['message']);
-      if (result.retcode === -3501 || result.retcode === -3505) {
+      credentialPairsFromHeader(raw.headerText, result.pairs, () => {
+        result.hasToken = true;
+      });
+      const data = obj['data'] as Record<string, Object> | undefined;
+      const dataKeys = data ? Object.keys(data).join(',') : '(无 data)';
+      const statusRaw = data ? asStr(data['status']) : '';
+      result.debugText =
+        `HTTP ${httpCode} · rc ${result.retcode} · status=${statusRaw === '' ? '(空)' : statusRaw} · data键=[${trim(dataKeys, 80)}] · 消息:${trim(result.message, 40)}`;
+      if (result.retcode === -3501 || result.retcode === -3505 || result.retcode === -106) {
         result.status = 'expired';
         return result;
       }
       if (result.retcode !== 0) {
         return result;
       }
-      const data = obj['data'] as Record<string, Object> | undefined;
       if (!data) {
         return result;
       }
-      const status = asStr(data['status']).toLowerCase();
+      const status = statusRaw.toLowerCase();
       if (status === 'expired') {
         result.status = 'expired';
         return result;
@@ -142,8 +240,8 @@ class QrLoginApi {
         result.status = 'confirmed';
         const tokens = data['tokens'];
         if (Array.isArray(tokens)) {
-          (tokens as Object[]).forEach((raw: Object) => {
-            const t = raw as Record<string, Object>;
+          (tokens as Object[]).forEach((rawT: Object) => {
+            const t = rawT as Record<string, Object>;
             const token = asStr(t['token']);
             const type = t['token_type'];
             const typeNum = typeof type === 'number' ? type : 0;
@@ -153,15 +251,18 @@ class QrLoginApi {
             const baseName = typeNum === 1 ? 'stoken' : (typeNum === 2 ? 'ltoken' : 'cookie_token');
             const name = token.startsWith('v2_') ? `${baseName}_v2` : baseName;
             result.pairs.push(`${name}=${token}`);
+            result.hasToken = true;
           });
         }
         const user = data['user_info'] as Record<string, Object> | undefined;
         if (user) {
           addIdentity(result.pairs, asStr(user['aid']), asStr(user['mid']));
         }
+        return result;
       }
+      // Init/Created/未知状态维持 pending，诊断行保留原值供观察
     } catch (e) {
-      // 保留默认态
+      result.debugText = `HTTP ${httpCode} · 解析失败（响应不是预期 JSON）`;
     }
     return result;
   }
