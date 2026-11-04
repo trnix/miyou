@@ -1,36 +1,69 @@
-## 架构与工程规则
+# 米柚开发经验与工程规则
 
-- `hvigorw`（命令行）或 DevEco Studio 4.x（API 12 = HarmonyOS NEXT 5.0.0）
-- 纯 ArkTS，UI 全部 ArkUI（@Entry/@Component + @Builder + @State/@StorageLink）
-- `net/MysHttp.ets`：唯一网络层，返回 `{ httpCode, body }`
-- 页面间通信用 router pushUrl + JSON params（16-20 KB 上限），或 AppStorage 共享键
-- 帖子卡片封面图 URL 拼接 `?x-oss-process=image/resize,w_600/format,webp/auto-orient,0` 降带宽
-- 评论区 onAreaChange 懒加载（area 由 0 变非 0 时触发一次）
-- 帖子封面上加玻璃遮罩标题用 Stack overlay + systemMaterial（materialDark 已在 titleBar 区域验证可行，更多毛玻璃实验见 R2 探索记录）
+> 本文件是项目的持久记忆：所有规则都源自真实踩坑与实测验证，不包含推测。
+> 写新代码前先读「ArkTS 踩坑清单」，接接口前先读「已验证接口表」。
 
-## 功能矩阵（已完成 / 进行中/ 规划中）
+## 架构基线
+
+- 工具链：hvigorw 命令行 / DevEco Studio（API 12 = HarmonyOS NEXT 5.0.0），纯 ArkTS + ArkUI
+- 入口 EntryAbility hydrate 三件套：Session（登录 Cookie）、DeviceIdentity（设备指纹）、GlassTheme（沉浸光感档位）
+- 网络层唯一出口 `net/MysHttp.ets`：request(GET) / postJson(POST)，返回 `{ httpCode, body, headerText }`；headerText 可能含凭据，界面不得直接展示
+- 端点与版本号集中在 `net/Endpoints.ets`；各 Api 类自管请求头，登录后经 `Session.cookie()` 附带 Cookie
+- 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
+- Tab 框架（AppShell）：系统 `Tabs` + 3 个 `TabContent`，`.barHeight(0)` 隐藏系统页签条，自定义悬浮药丸底栏保留；TabContent 天然懒挂载 + 常驻保活；切换动画只由 `TabsController.changeIndex` 驱动，`currentTab` 由 `onChange` 回填；`.scrollable(true)` 附带边缘横滑手势
+- 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 按真实比例微调，Clamp 0.5~3，180ms 过渡）；头像与信息流图片定高 + `#F2F4F7` 占位底色
+- 全局滚动条隐藏：Scroll/List 统一 `.scrollBar(BarState.Off)`
+- 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
+
+## ArkTS 踩坑清单（七条铁律）
+
+1. 禁 any/unknown（arkts-no-any-unknown）。JSON 解析一律 `(raw as Record<string, Object>)['key']` 递归取值，配合 asStr/asNum/asBool 防御性提取，单条失败不丢整页
+2. 索引访问类型受限：断言后取键必须写成 `(x as Record<string, Object>)['key']`，不能链式简写
+3. @Builder 首层必须是 UI 组件语法：**不能有 const 赋值等中间语句**；需要中间值就写普通 helper 方法（如 floorStateOf/isFloorExpanded）在 Builder 内调用
+4. build 内 if 条件必须引用响应式状态（@State/@StorageLink/@Prop）：普通字段写在条件里只会在首次合成时求值一次，之后永不重建（Tab 保活标记曾因此导致两个 Tab 空白）
+5. 新建页面 .ets 必须登记 `entry/src/main/resources/base/profile/main_pages.json`，否则 router.pushUrl 静默失败（按钮可见、点击无反应，无任何报错）
+6. 类型声明必须具名：禁内联对象字面量类型（arkts-no-obj-literals-as-types），回调参数结构也要先声明 interface
+7. Tabs 的 `index` 属性绑定 @State 时，直接改状态会**瞬跳无动画**；要点按动画必须只调 `TabsController.changeIndex`，状态交给 `onChange` 回填，两者不可同时写
+
+## 已验证接口表
+
+### bbs 读接口（web 头组即可，登录 Cookie 为可选增强）
+- 信息流：`GET bbs-api-static.miyoushe.com/apihub/wapi/webHome?gids={2|6|8}&page=&page_size=`（原神 2 / 星穹铁道 6 / 绝区零 8；崩坏 3 gid 实测错位，已下架）
+- 帖子详情：`GET bbs-api.miyoushe.com/post/wapi/getPostFull?post_id=&read=1`（**read=1 必带**，缺了新型帖子报「请升级版本查看」；正文五形态：NORMAL delta / PIC / UGC / HTML / JSON 字符串，PostModels 全归一为 text/image 块）
+- 评论：`GET bbs-api.miyoushe.com/post/api/getPostReplies?post_id=&size=&is_hot=true&last_id=`（last_id 游标分页）
+- 楼中楼：`GET bbs-api.miyoushe.com/post/wapi/getSubReplies?post_id=&floor_id=&gids=&size=&last_id=`（floor_id 取主评论 reply_id 数值部分，已实测）
+- 搜索：`GET bbs-api.miyoushe.com/post/wapi/searchPosts?gids=&keyword=&last_id=&size=20&order_type={1最热|2最新}`
+- 用户资料：`GET bbs-api.miyoushe.com/user/api/getUserFullInfo?uid=&gids=`（自己他人均可）
+
+### 登录与设备
+- 扫码登录：`passport-api.miyoushe.com/account/ma-cn-passport/web` 通道（app_id bll8iq97cem8，client_type=4），createQRLogin / queryQRLoginStatus；凭据从确认响应 tokens + Set-Cookie 双向归集
+- 网页登录：Login.ets 内嵌 user.mihoyo.com webview，7 域 Cookie 归集 + v2 键判定；Session.compose 按键去重丢空值（空 v1 键会误导服务器判未登录）
+- 设备指纹：`public-data-api.mihoyo.com/device-fp/api/getFp`，device_id/device_fp 成对稳定持久化
+
+### 已知受限（客户端无解，勿再试）
+- `post/wapi/userPost`：任何 uid 都返回 1001 权限不足（服务端风控），他人主页帖子区与 MineTab 跳自己主页均因此受限
+- 崩坏 3：gids=3 实测返回崩坏学园 2 内容，正确值不可考，已下架
+- R4 游戏战绩（game_record 域）：需 DS2 签名链路，已放弃；RecordApi/DsSign/GameRecord 已从仓库删除
+
+## 功能矩阵（当前真实状态）
 
 | 功能 | 状态 |
 |---|---|
-| 双层导航 | ✅ |
-| 首页推荐流 | ✅ API 1 阶段约 20 条 |
-| 个人中心 | ✅ MineTab 已登录时展示头像昵称可点跳 UserProfile；未登录提示登录 |
-| 帖子详情 | ✅ 标题话题正文图片点击预览全屏，字段缺失不回退 |
-| 评论区 | ✅ 热门评论懒加载 + loadMore + 评论区滚动带过动画 + 楼中楼子回复可点展开 |
-| 社区搜索 | ✅ searchAll gids+keyword 混排 + author 头像/可点进主页 |
-| 用户主页 | ✅ UserCard + 单用户帖子列表（评论区与帖子详情、社区搜索到用户间互相穿棱跳转） |
-| 个人主页媒体流 | 🟡 R4 只显示用户发布帖列表；原神战绩等工具接口依赖风控或需 LToken，先范二排梁 |
-| 会话持久化 | ✅ LoginAccount 双 token 写 AppStorage → cookie 对多个接口全线复用；未登录 lz1 显示登录页 |
-| 媒体身份核验 | ✅ 该登录用户可以申请宽高宽异参数 [{'a': '0.9.9'}]及当前在线设备全量信息 |
-
-## 持续进行的暗点 / 验证记录
-
-- 已验证接口表按**类**划分：`FeedApi`（信息流+webHome）、`PostApi`(帖子/评论/楼中楼)、`LoginApi`(扫码登录)+`UserPostListApi`(单用户帖)。**跨类混淆要多频实践再归纳**，不可从个别 URL 字母组合直接推测类组分歧（比如 FeedApi 与 PostApi 同 post/wapi）。
-- 全部模型严议默认从 `data` 粒度入手（posts → reply_items → user_posts → albums），**先取得 Object 再递归解析，不用中间 Record 转轴**。
-- Builder 里出现 `avatar.length > 0` 条件时控制优先级：若首个条件分支 Image 后走到头像 alt sytle，哈 bgcolor 以 avatar2 的 array，主播 panel Image(item.avatar) .alt 与外部 UI重叠，不宜写为 `if(...) { Image(avatar)... } else if(...) { Image... }` 分支而**单一链式** `.alt` 后复合条件噪犯支撑。**再逐点严格按 Builder UI-DSL 要求**：条件分身名下不允许中间定义变量收敛，训练不足时多写 helper 普通方法（如 floorStateOf）。
-- 子回复 floor_id 来源于主评论 reply_id 数字部分（接口 floor_id 与 reply_id 数值相同，已实测有效）；如果实测 Invalid floor id，就要改为低碳 floor_id 的贴吧入参。
-- 新建页面 .ets 文件必须同时在 `entry/src/main/resources/base/profile/main_pages.json` 的 src 数组里登记路径，否则 router.pushUrl 会静默失败（R7 上踩雷）。
+| 首页推荐流 | ✅ 三游戏频道切换 + 下拉刷新 + 上拉分页 |
+| 社区搜索 | ✅ 按游戏 + 最热/最新 + 游标分页 |
+| 帖子详情 | ✅ 标题/话题/结构化正文/图片点击全屏预览 |
+| 评论区 | ✅ 热评分页 + 楼中楼可点展开（每楼层独立状态） |
+| 用户主页 | ✅ 资料卡 + 他人帖子列表（自己帖子受 1001 限制） |
+| 我的 | ✅ 登录身份卡（头像/昵称/UID/简介/四项数据，@Watch 随登录态刷新）+ 沉浸光感开关 + 动态版本号 |
+| 登录 | ✅ 官方网页登录 + 扫码登录，Cookie 清洗持久化 |
+| Tab 框架 | ✅ 系统 Tabs 滑动动画 + 横滑手势 + 保活不重载 |
+| 图片体验 | ✅ AdaptiveImage 预估比例占位 → 真实比例微调，无裁剪无跳动 |
+| 消息 | ❌ 入口已移除（官方接口未接入） |
+| 版区频道页 | ❌ R7 取消（降级后与首页重叠，ForumHome.ets 已删） |
+| 游戏战绩 | ❌ R4 放弃（DS 签名链路复杂度高，相关文件已删） |
 
 ## 当前进度
 
-v0.7.0 R6 楼中楼验证通过。R7（版区频道页）已取消——原意做子版块导航（官方/酒馆/同人），调研发现该接口未公开或无法按 gid 拆信息流，降级复刻首页游戏频道与首页重叠，用户提议删除，已提交 928cda9/0dd4379 清理完毕。下一个任务待定。
+v0.7.0：R6 楼中楼；性能三件套（Tab 保活 / 图片占位 / 隐藏滚动条）；系统 Tabs 滑动动画；AdaptiveImage 自适应比例图；MineTab 身份卡；死代码清理（Community.ets 死路由页 + RecordApi/DsSign/GameRecord 战绩遗留）。
+
+原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。

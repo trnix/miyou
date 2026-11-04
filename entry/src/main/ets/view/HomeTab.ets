@@ -1,4 +1,4 @@
-import { promptAction, router } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { FeedApi } from '../net/FeedApi';
 import { FeedPost, HomeResult, FeedModels, formatCount } from '../model/FeedModels';
 import { GlassTheme } from './GlassTheme';
