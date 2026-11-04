@@ -9,6 +9,21 @@ interface RouteParams {
   postId?: string;
 }
 
+// 楼中楼展开状态：每楼层独立维护子回复列表、展开标志、分页游标与页面内 error 状态。
+interface SubFloorState {
+  expanded: boolean;
+  loading: boolean;
+  loaded: boolean;
+  replies: ReplyItem[];
+  lastId: string;
+  isLast: boolean;
+  errorText: string;
+}
+
+function emptyFloorState(): SubFloorState {
+  return { expanded: false, loading: false, loaded: false, replies: [], lastId: '', isLast: true, errorText: '' };
+}
+
 @Entry
 @Component
 struct PostDetailPage {
@@ -26,6 +41,7 @@ struct PostDetailPage {
   @State replyLastId: string = '';
   @State replyIsLast: boolean = true;
   @State replyLoaded: boolean = false;
+  @State floorStates: Map<string, SubFloorState> = new Map<string, SubFloorState>();
   private postId: string = '';
 
   private vp(px: number): number {
@@ -106,6 +122,83 @@ struct PostDetailPage {
     }
   }
 
+  // 用 reply_id 的数字部分当楼层 ID（reply_id 在接口里是数值字符串）。
+  private floorIdOf(replyId: string): number {
+    const n = Number(replyId);
+    return isNaN(n) ? 0 : n;
+  }
+
+  private updateFloor(replyId: string, mutate: (state: SubFloorState) => SubFloorState): void {
+    const next = new Map<string, SubFloorState>(this.floorStates);
+    const cur = next.get(replyId) ?? emptyFloorState();
+    next.set(replyId, mutate(cur));
+    this.floorStates = next;
+  }
+
+  private async toggleFloor(reply: ReplyItem, expanded: boolean): Promise<void> {
+    this.updateFloor(reply.replyId, (s: SubFloorState) => {
+      s.expanded = expanded;
+      if (expanded && !s.loaded) {
+        s.loading = true;
+      }
+      return s;
+    });
+    if (!expanded) {
+      return;
+    }
+    await this.loadSubReplies(reply, false);
+  }
+
+  private async loadSubReplies(reply: ReplyItem, more: boolean): Promise<void> {
+    const floorId = this.floorIdOf(reply.replyId);
+    if (floorId <= 0) {
+      this.updateFloor(reply.replyId, (s: SubFloorState) => {
+        s.loading = false;
+        s.errorText = '楼层 ID 无效，无法展开';
+        return s;
+      });
+      return;
+    }
+    const cur = this.floorStates.get(reply.replyId) ?? emptyFloorState();
+    const lastId = more ? cur.lastId : '';
+    try {
+      const raw = await PostApi.fetchSubReplies(this.postId, floorId, 2, lastId, 20);
+      const r = ReplyModels.parse(raw);
+      this.updateFloor(reply.replyId, (s: SubFloorState) => {
+        s.loading = false;
+        s.loaded = true;
+        if (r.retcode === 0) {
+          s.errorText = '';
+          s.lastId = r.lastId;
+          s.isLast = r.isLast;
+          if (more) {
+            const merged = s.replies.slice();
+            const seen = new Set<string>();
+            merged.forEach((x: ReplyItem) => seen.add(x.replyId));
+            r.replies.forEach((x: ReplyItem) => {
+              if (!seen.has(x.replyId)) {
+                seen.add(x.replyId);
+                merged.push(x);
+              }
+            });
+            s.replies = merged;
+          } else {
+            s.replies = r.replies;
+          }
+        } else {
+          s.errorText = `子回复接口返回 ${r.retcode}（${r.message}）`;
+        }
+        return s;
+      });
+    } catch (e) {
+      this.updateFloor(reply.replyId, (s: SubFloorState) => {
+        s.loading = false;
+        s.errorText = '子回复加载失败，请检查网络';
+        return s;
+      });
+    }
+  }
+
   @Builder
   BlockView(block: PostBlock) {
     if (block.kind === 'text') {
@@ -158,7 +251,7 @@ struct PostDetailPage {
   }
 
   @Builder
-  ReplyView(item: ReplyItem) {
+  ReplyView(item: ReplyItem, isSub: boolean) {
     Column({ space: 6 }) {
       Row({ space: 8 }) {
         Image(item.avatar)
@@ -215,14 +308,68 @@ struct PostDetailPage {
             })
         })
       }
-      if (item.subReplyCount > 0) {
-        Text(`共 ${item.subReplyCount} 条回复`)
+      // 楼中楼触发：只在主评论上显示子回复数，子评论本身不再展开
+      if (!isSub && item.subReplyCount > 0) {
+        Text(`共 ${item.subReplyCount} 条回复 ›`)
           .fontSize(12)
           .fontColor('#1570EF')
+          .onClick(() => {
+            const cur = this.floorStates.get(item.replyId);
+            this.toggleFloor(item, !(cur?.expanded ?? false));
+          })
       }
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  SubFloorPanel(floor: ReplyItem) {
+    const state = this.floorStates.get(floor.replyId) ?? emptyFloorState();
+    if (state.expanded) {
+      Column({ space: 8 }) {
+        Divider()
+          .width(2)
+          .color('#2B1570EF')
+          .margin({ left: 8 })
+        if (state.loading && state.replies.length === 0) {
+          Text('加载中…')
+            .fontSize(12)
+            .fontColor('#98A2B3')
+            .padding({ left: 20 })
+        } else if (state.errorText !== '') {
+          Text(state.errorText)
+            .fontSize(12)
+            .fontColor('#667085')
+            .padding({ left: 20 })
+          Button('重试')
+            .fontSize(12)
+            .onClick(() => this.loadSubReplies(floor, false))
+        } else if (state.replies.length === 0 && state.loaded) {
+          Text('子回复为空')
+            .fontSize(12)
+            .fontColor('#98A2B3')
+            .padding({ left: 20 })
+        } else {
+          ForEach(state.replies, (subItem: ReplyItem) => {
+            Column({ space: 6 }) {
+              this.ReplyView(subItem, true)
+            }
+            .width('100%')
+            .padding({ left: 20 })
+          }, (subItem: ReplyItem) => subItem.replyId)
+          if (!state.isLast) {
+            Button(state.loading ? '加载中…' : '加载更多子回复')
+              .fontSize(12)
+              .enabled(!state.loading)
+              .onClick(() => this.loadSubReplies(floor, true))
+          }
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .margin({ top: 4 })
+    }
   }
 
   build() {
@@ -358,18 +505,17 @@ struct PostDetailPage {
                     .width('100%')
                 } else {
                   ForEach(this.replies, (item: ReplyItem) => {
-                    this.ReplyView(item)
+                    Column({ space: 8 }) {
+                      this.ReplyView(item, false)
+                      // 楼中楼子回复面板：仅展开时才渲染
+                      this.SubFloorPanel(item)
+                    }
+                    .width('100%')
                   }, (item: ReplyItem) => item.replyId)
                   if (!this.replyIsLast) {
                     Button(this.replyLoading ? '加载中…' : '加载更多评论')
                       .enabled(!this.replyLoading)
                       .onClick(() => this.loadReplies(true))
-                  } else {
-                    Text('楼中楼回复将在 R6 接入')
-                      .fontSize(11)
-                      .fontColor('#C0C4CC')
-                      .width('100%')
-                      .textAlign(TextAlign.Center)
                   }
                 }
               }

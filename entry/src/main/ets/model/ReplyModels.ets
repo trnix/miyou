@@ -1,6 +1,7 @@
 // getPostReplies 评论模型与防御性解析。
-// 只取主楼评论（楼中楼展开归 R6）；字段缺失不崩，list 缺失为空数组。
+// 只取主楼评论；字段缺失不崩，list 缺失为空数组。
 // content 可能是纯文本、HTML，或内嵌 JSON（图片/表情包），统一提取为纯文本 + 图片列表。
+// 楼中楼子回复 与主评论结构一致，共用同一解析器。
 
 export interface ReplyItem {
   replyId: string;

@@ -41,4 +41,17 @@ export class PostApi {
     }
     return JSON.parse(raw.body) as Object;
   }
+
+  // 楼中楼子回复。参数对齐上游 TeyvatGuide getSubReplies：floor_id / gids / post_id / size / last_id。
+  static async fetchSubReplies(postId: string, floorId: number, gid: number, lastId: string, size: number): Promise<Object> {
+    let url = `https://bbs-api.miyoushe.com/post/wapi/getSubReplies?post_id=${postId}&floor_id=${floorId}&gids=${gid}&size=${size}`;
+    if (lastId !== '') {
+      url += `&last_id=${lastId}`;
+    }
+    const raw = await MysHttp.request(url, PostApi.headers());
+    if (raw.httpCode !== 200) {
+      throw new Error(`HTTP ${raw.httpCode}`);
+    }
+    return JSON.parse(raw.body) as Object;
+  }
 }
