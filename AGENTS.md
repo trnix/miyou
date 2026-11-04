@@ -14,12 +14,11 @@
 |---|---|
 | 双层导航 | ✅ |
 | 首页推荐流 | ✅ API 1 阶段约 20 条 |
-| 个人中心 | ✅ 边端用户资料 + 单用户帖子列表滑动二段动画 |
+| 个人中心 | ✅ MineTab 已登录时展示头像昵称可点跳 UserProfile；未登录提示登录 |
 | 帖子详情 | ✅ 标题话题正文图片点击预览全屏，字段缺失不回退 |
 | 评论区 | ✅ 热门评论懒加载 + loadMore + 评论区滚动带过动画 + 楼中楼子回复可点展开 |
 | 社区搜索 | ✅ searchAll gids+keyword 混排 + author 头像/可点进主页 |
 | 用户主页 | ✅ UserCard + 单用户帖子列表（评论区与帖子详情、社区搜索到用户间互相穿棱跳转） |
-| 版区频道页 | 🟡 R7a 骨架完成：频道设置入口可点 + 顶部子板块导航可点切换选中；R7b 左右滑 + 最新排序开关待试 |
 | 个人主页媒体流 | 🟡 R4 只显示用户发布帖列表；原神战绩等工具接口依赖风控或需 LToken，先范二排梁 |
 | 会话持久化 | ✅ LoginAccount 双 token 写 AppStorage → cookie 对多个接口全线复用；未登录 lz1 显示登录页 |
 | 媒体身份核验 | ✅ 该登录用户可以申请宽高宽异参数 [{'a': '0.9.9'}]及当前在线设备全量信息 |
@@ -30,7 +29,8 @@
 - 全部模型严议默认从 `data` 粒度入手（posts → reply_items → user_posts → albums），**先取得 Object 再递归解析，不用中间 Record 转轴**。
 - Builder 里出现 `avatar.length > 0` 条件时控制优先级：若首个条件分支 Image 后走到头像 alt sytle，哈 bgcolor 以 avatar2 的 array，主播 panel Image(item.avatar) .alt 与外部 UI重叠，不宜写为 `if(...) { Image(avatar)... } else if(...) { Image... }` 分支而**单一链式** `.alt` 后复合条件噪犯支撑。**再逐点严格按 Builder UI-DSL 要求**：条件分身名下不允许中间定义变量收敛，训练不足时多写 helper 普通方法（如 floorStateOf）。
 - 子回复 floor_id 来源于主评论 reply_id 数字部分（接口 floor_id 与 reply_id 数值相同，已实测有效）；如果实测 Invalid floor id，就要改为低碳 floor_id 的贴吧入参。
+- 新建页面 .ets 文件必须同时在 `entry/src/main/resources/base/profile/main_pages.json` 的 src 数组里登记路径，否则 router.pushUrl 会静默失败（R7 上踩雷）。
 
 ## 当前进度
 
-v0.7.0-b1 R6 楼中楼验证通过（共 N 条回复可点展开、子回复加载、缩进 + 蓝分隔线、多楼层独立开合）。下一任务 R7b：左右滑切换子板块 + 最新排序开关 + 版块信息流复底纸以列表型（吻合用户多贸剖恶值维护方案）。
+v0.7.0 R6 楼中楼验证通过。R7（版区频道页）已取消——原意做子版块导航（官方/酒馆/同人），调研发现该接口未公开或无法按 gid 拆信息流，降级复刻首页游戏频道与首页重叠，用户提议删除，已提交 928cda9/0dd4379 清理完毕。下一个任务待定。

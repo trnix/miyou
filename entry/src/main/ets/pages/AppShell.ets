@@ -10,19 +10,11 @@ struct AppShell {
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State currentTab: number = 0;
-  private tabTitles: string[] = ['首页', '社区', '消息', '我的'];
+  private tabTitles: string[] = ['首页', '社区', '我的'];
   private readonly topBar: number = 56;
 
   private vp(px: number): number {
     return this.getUIContext().px2vp(px);
-  }
-
-  @Builder
-  PlaceholderTab(title: string, desc: string) {
-    Column({ space: 10 }) {
-      Text(title).fontSize(22).fontWeight(FontWeight.Medium)
-      Text(desc).fontSize(13).fontColor('#667085').textAlign(TextAlign.Center).lineHeight(20)
-    }.width('100%').height('100%').justifyContent(FlexAlign.Center).padding(24)
   }
 
   build() {
@@ -35,8 +27,6 @@ struct AppShell {
           Column() {
             if (this.currentTab === 1) {
               SearchTab()
-            } else if (this.currentTab === 2) {
-              this.PlaceholderTab('消息', '消息中心暂不开发，请使用官方 App 查看互动通知')
             } else {
               MineTab()
             }
