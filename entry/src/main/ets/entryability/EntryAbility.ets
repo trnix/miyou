@@ -6,6 +6,7 @@ import { GlassTheme } from '../view/GlassTheme';
 
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null;
+  private windowStageRef: window.WindowStage | null = null;
 
   private updateSafeArea(win: window.Window): void {
     try {
@@ -22,20 +23,38 @@ export default class EntryAbility extends UIAbility {
     }
   }
 
-  onWindowStageCreate(windowStage: window.WindowStage): void {
+  // 窗口级全局沉浸：全屏布局 + 状态栏/导航条透明 + 深色内容色。
+  // 每次返回前台重新应用，防止登录/相机/全屏 H5 等流程被系统改动后不复原。
+  private applyWindowImmersion(): void {
     try {
-      const windowClass = windowStage.getMainWindowSync();
-      this.mainWindow = windowClass;
-      windowClass.setWindowLayoutFullScreen(true);
-      // 系统栏沉浸：状态栏/导航条颜色透明，内容延伸到屏幕边缘，小白条直接压在内容上。
+      let win = this.mainWindow;
+      if (win === null && this.windowStageRef !== null) {
+        win = this.windowStageRef.getMainWindowSync();
+        this.mainWindow = win;
+      }
+      if (win === null) {
+        return;
+      }
+      win.setWindowLayoutFullScreen(true);
       const barProps: window.SystemBarProperties = {
         statusBarColor: '#00000000',
         navigationBarColor: '#00000000',
         statusBarContentColor: '#000000',
         navigationBarContentColor: '#000000'
       };
-      windowClass.setWindowSystemBarProperties(barProps);
-      this.updateSafeArea(windowClass);
+      win.setWindowSystemBarProperties(barProps);
+      this.updateSafeArea(win);
+    } catch (e) {
+      console.warn('米柚沉浸设置应用失败');
+    }
+  }
+
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    this.windowStageRef = windowStage;
+    try {
+      const windowClass = windowStage.getMainWindowSync();
+      this.mainWindow = windowClass;
+      this.applyWindowImmersion();
       windowClass.on('avoidAreaChange', (options: window.AvoidAreaOptions) => {
         if (options.type === window.AvoidAreaType.TYPE_SYSTEM ||
           options.type === window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
@@ -57,6 +76,11 @@ export default class EntryAbility extends UIAbility {
     });
   }
 
+  onForeground(): void {
+    // 从相机/其他 Ability/可能改动过栏设置的流程返回时，恢复全局沉浸基线
+    this.applyWindowImmersion();
+  }
+
   onWindowStageDestroy(): void {
     if (this.mainWindow !== null) {
       try {
@@ -66,5 +90,6 @@ export default class EntryAbility extends UIAbility {
       }
       this.mainWindow = null;
     }
+    this.windowStageRef = null;
   }
 }

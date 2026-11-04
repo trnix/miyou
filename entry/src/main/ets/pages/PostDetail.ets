@@ -363,7 +363,7 @@ struct PostDetailPage {
               .padding({ top: 8, bottom: 20 })
             }
             .width('100%')
-            .padding({ left: 16, right: 16, top: 16 })
+            .padding({ left: 16, right: 16, top: 16, bottom: 20 + this.vp(this.safeBottomPx) })
           }
           .layoutWeight(1)
           .width('100%')
@@ -371,7 +371,7 @@ struct PostDetailPage {
       }
       .width('100%')
       .height('100%')
-      .padding({ top: 56 + this.vp(this.safeTopPx), bottom: this.vp(this.safeBottomPx) })
+      .padding({ top: 56 + this.vp(this.safeTopPx) })
 
       this.TopBar()
 
