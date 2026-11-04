@@ -1,6 +1,13 @@
 // 自适应比例图片：先按 16:9 预估比例占位（布局从首帧起稳定，不再跳动），
 // onComplete 拿到真实宽高后微调为真实比例，变化带短过渡。
 // 比例限制在 0.5~3 之间：极端长图（如滚动截图）不会把页面拉成瀑布，点按仍可全屏看原图。
+
+// ArkTS 禁止内联对象字面量作类型声明，具名 interface 是必须的写法
+interface ImageCompleteInfo {
+  width: number;
+  height: number;
+}
+
 @Component
 export struct AdaptiveImage {
   imageUrl: string = '';
@@ -16,7 +23,7 @@ export struct AdaptiveImage {
       .backgroundColor('#F2F4F7')
       .borderRadius(this.radius)
       .animation({ duration: 180, curve: Curve.EaseOut })
-      .onComplete((event?: { width: number; height: number }) => {
+      .onComplete((event?: ImageCompleteInfo) => {
         if (event === undefined || event.width <= 0 || event.height <= 0) {
           return;
         }
