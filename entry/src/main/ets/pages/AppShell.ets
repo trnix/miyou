@@ -10,60 +10,50 @@ struct AppShell {
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State currentTab: number = 0;
-  // Tab 保活标记必须是 @State：普通字段写在 if 条件里不会被框架依赖追踪，
-  // 首次合成后分支不再求值，组件永远不挂载（上版社区/我的空白的根因）。
-  @State visitedHome: boolean = true;
-  @State visitedCommunity: boolean = false;
-  @State visitedMine: boolean = false;
   private tabTitles: string[] = ['首页', '社区', '我的'];
   private readonly topBar: number = 56;
+  private tabsController: TabsController = new TabsController();
 
   private vp(px: number): number {
     return this.getUIContext().px2vp(px);
   }
 
-  private switchTab(idx: number): void {
-    if (idx === 0) {
-      this.visitedHome = true;
-    } else if (idx === 1) {
-      this.visitedCommunity = true;
-    } else {
-      this.visitedMine = true;
-    }
-    this.currentTab = idx;
-  }
-
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {}.width('100%').height('100%').backgroundColor('#F7F8FA')
-      Stack() {
-        if (this.visitedHome) {
-          Column() {
-            HomeTab()
-          }
-          .width('100%')
-          .height('100%')
-          .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.Hidden)
+
+      // 系统 Tabs：barHeight(0) 隐藏自带页签条，保留自定义悬浮底栏；
+      // TabContent 自带懒加载 + 常驻保活 + 切换滑动动画 + 边缘横滑手势。
+      Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
+        TabContent() {
+          HomeTab()
         }
-        if (this.visitedCommunity) {
+        TabContent() {
           Column() {
             SearchTab()
           }
           .width('100%')
           .height('100%')
           .padding({ top: this.topBar + this.vp(this.safeTopPx) })
-          .visibility(this.currentTab === 1 ? Visibility.Visible : Visibility.Hidden)
         }
-        if (this.visitedMine) {
+        TabContent() {
           Column() {
             MineTab()
           }
           .width('100%')
           .height('100%')
           .padding({ top: this.topBar + this.vp(this.safeTopPx) })
-          .visibility(this.currentTab === 2 ? Visibility.Visible : Visibility.Hidden)
         }
-      }.width('100%').height('100%')
+      }
+      .width('100%')
+      .height('100%')
+      .barHeight(0)
+      .scrollable(true)
+      .animationDuration(280)
+      .onChange((index: number) => {
+        this.currentTab = index;
+      })
+
       Column() {
         Row() {
           Text('米柚').fontSize(20).fontWeight(FontWeight.Bold)
@@ -75,6 +65,7 @@ struct AppShell {
           .systemMaterial(GlassTheme.material(this.glassLevel))
           .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
       }.width('100%').height('100%').hitTestBehavior(HitTestMode.None)
+
       Row() {
         ForEach(this.tabTitles, (title: string, idx: number) => {
           Column() {
@@ -83,7 +74,10 @@ struct AppShell {
               .fontWeight(this.currentTab === idx ? FontWeight.Medium : FontWeight.Normal)
           }.layoutWeight(1).padding({ top: 14, bottom: 14 })
             .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000').borderRadius(24)
-            .onClick(() => { this.switchTab(idx); })
+            .onClick(() => {
+              this.currentTab = idx;
+              this.tabsController.changeIndex(idx);
+            })
         })
       }.margin({ left: 16, right: 16, bottom: this.vp(this.safeBottomPx) }).padding(8)
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
