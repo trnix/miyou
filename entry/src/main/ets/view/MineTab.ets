@@ -44,13 +44,6 @@ export struct MineTab {
     }
   }
 
-  private openUserProfile(): void {
-    const uid = Session.stuid();
-    if (uid !== '') {
-      router.pushUrl({ url: 'pages/UserProfile', params: { uid: uid } });
-    }
-  }
-
   build() {
     Scroll() {
       Column({ space: 14 }) {
@@ -72,7 +65,7 @@ export struct MineTab {
           .backgroundColor('#FFFFFF')
           .borderRadius(16)
         } else {
-          // 已登录：头像 + 昵称 + 点卡片跳 UserProfile
+          // 已登录：头像 + 昵称 + 数据
           Column({ space: 10 }) {
             Row({ space: 12 }) {
               if (this.loadingProfile) {
@@ -117,9 +110,6 @@ export struct MineTab {
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
-              Text('›')
-                .fontSize(20)
-                .fontColor('#C0C4CC')
             }
             .width('100%')
 
@@ -156,7 +146,6 @@ export struct MineTab {
           .padding(16)
           .backgroundColor('#FFFFFF')
           .borderRadius(16)
-          .onClick(() => this.openUserProfile())
         }
 
         Column({ space: 10 }) {
