@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { bundleManager } from '@kit.AbilityKit';
 import { Session } from '../auth/Session';
 import { GlassTheme } from './GlassTheme';
 
@@ -6,6 +7,17 @@ import { GlassTheme } from './GlassTheme';
 export struct MineTab {
   @StorageLink('cookie') cookie: string = '';
   @StorageLink('glassLevel') glassLevel: number = 3;
+  @State versionName: string = '';
+
+  aboutToAppear(): void {
+    bundleManager.getBundleInfoForSelf(
+      bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT
+    ).then((info) => {
+      this.versionName = info.versionName;
+    }).catch(() => {
+      this.versionName = '';
+    });
+  }
 
   build() {
     Scroll() {
@@ -56,7 +68,9 @@ export struct MineTab {
         .backgroundColor('#FFFFFF')
         .borderRadius(16)
 
-        Text('米柚 0.6.0 · 非官方米游社客户端 · 只读应用')
+        Text(this.versionName !== ''
+          ? `米柚 ${this.versionName} · 非官方米游社客户端 · 只读应用`
+          : '米柚 · 非官方米游社客户端 · 只读应用')
           .fontSize(11)
           .fontColor('#98A2B3')
           .width('100%')
