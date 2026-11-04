@@ -18,8 +18,10 @@ export class PostApi {
     return headers;
   }
 
+  // read=1：对齐上游实现（TeyvatGuide getPostFull 参数 { post_id, read: 1 }）；
+  // 缺该参数时服务器将请求方视为旧版客户端，对新型帖子返回「请升级版本查看」。
   static async fetchPostFull(postId: string): Promise<Object> {
-    const url = `https://bbs-api.miyoushe.com/post/wapi/getPostFull?post_id=${postId}`;
+    const url = `https://bbs-api.miyoushe.com/post/wapi/getPostFull?post_id=${postId}&read=1`;
     const raw = await MysHttp.request(url, PostApi.headers());
     if (raw.httpCode !== 200) {
       throw new Error(`HTTP ${raw.httpCode}`);

@@ -53,7 +53,12 @@ struct PostDetailPage {
         this.detail = d;
         this.loadReplies(false);
       } else {
-        this.errorText = `接口返回 ${d.retcode}（${d.message}）`;
+        // 「请升级版本查看」是服务器对旧版客户端的拒绝文案，转为用户可理解的提示
+        if (d.message.indexOf('升级') >= 0) {
+          this.errorText = '该帖子为新版格式，暂不支持在米柚中查看，请使用官方 App 打开';
+        } else {
+          this.errorText = `接口返回 ${d.retcode}（${d.message}）`;
+        }
       }
     } catch (e) {
       this.errorText = '网络异常，请检查网络后重试';

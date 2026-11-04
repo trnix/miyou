@@ -1,6 +1,6 @@
 // getPostFull 帖子详情模型与防御性解析。
 // 正文归一为 text / image / unknown 三种块；四种结构形态（NORMAL/PIC/UGC/VOD）各自归一化；
-// structured_content 缺失时 post.content 可能是 HTML（官方新版 Quill 编辑器），单独走 HTML 兜底解析。
+// structured_content 缺失时 post.content 可能是 HTML 或 JSON 字符串（用户帖常见），分别走对应解析。
 // 未知块、解析失败、字段缺失一律降级，绝不崩溃。
 // 注意：ArkTS 禁止索引访问类型，断言后取键必须写成 (x as Record<string, Object>)['key']。
 
@@ -57,6 +57,17 @@ function imageBlock(url: string): PostBlock {
   return { kind: 'image', text: '', imageUrl: url };
 }
 
+// 长文本按换行拆分为多个段落块，页面层按段间距渲染，避免一堵墙式长文。
+function pushTextBlocks(blocks: PostBlock[], text: string): void {
+  const parts = text.split('\n');
+  parts.forEach((p: string) => {
+    const t = p.trim();
+    if (t !== '') {
+      blocks.push(textBlock(t));
+    }
+  });
+}
+
 function timeTextOf(ts: number): string {
   if (ts <= 0) {
     return '';
@@ -80,10 +91,7 @@ function parseDelta(sc: Record<string, Object>): PostBlock[] {
     const o = op as Record<string, Object>;
     const ins = o['insert'];
     if (typeof ins === 'string') {
-      const t = ins.trim();
-      if (t !== '') {
-        blocks.push(textBlock(t));
-      }
+      pushTextBlocks(blocks, ins);
     } else if (typeof ins === 'object' && ins !== null) {
       const io = ins as Record<string, Object>;
       const img = asStr(io['image']);
@@ -102,12 +110,11 @@ function parsePic(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const desc = asStr(sc['describe']);
   if (desc.trim() !== '') {
-    blocks.push(textBlock(desc.trim()));
+    pushTextBlocks(blocks, desc.trim());
   }
   const imgs = sc['imgs'];
   if (Array.isArray(imgs)) {
     (imgs as Object[]).forEach((iv: Object) => {
-      // 兼容两种元素形态：纯字符串 URL 或 {url: '...'} 对象
       let u = '';
       if (typeof iv === 'string') {
         u = iv;
@@ -127,7 +134,7 @@ function parseUgc(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const text = asStr(sc['text']);
   if (text.trim() !== '') {
-    blocks.push(textBlock(text.trim()));
+    pushTextBlocks(blocks, text.trim());
   }
   const imgs = sc['images'];
   if (Array.isArray(imgs)) {
@@ -167,16 +174,10 @@ function parseHtml(html: string): PostBlock[] {
   while (rest.length > 0) {
     const imgIdx = rest.indexOf('<img');
     if (imgIdx < 0) {
-      const t = htmlToText(rest);
-      if (t !== '') {
-        blocks.push(textBlock(t));
-      }
+      pushTextBlocks(blocks, htmlToText(rest));
       break;
     }
-    const before = htmlToText(rest.substring(0, imgIdx));
-    if (before !== '') {
-      blocks.push(textBlock(before));
-    }
+    pushTextBlocks(blocks, htmlToText(rest.substring(0, imgIdx)));
     const tagEnd = rest.indexOf('>', imgIdx);
     if (tagEnd < 0) {
       break;
@@ -191,6 +192,49 @@ function parseHtml(html: string): PostBlock[] {
       }
     }
     rest = rest.substring(tagEnd + 1);
+  }
+  return blocks;
+}
+
+// post.content 为 JSON 字符串时的解析（用户帖常见形态）：结构与 parsePic 相同。
+function parseJsonContent(content: string): PostBlock[] {
+  const blocks: PostBlock[] = [];
+  try {
+    const obj = JSON.parse(content) as Record<string, Object>;
+    const desc = asStr(obj['describe']);
+    if (desc !== '') {
+      pushTextBlocks(blocks, desc);
+    }
+    const imgs = obj['imgs'];
+    if (Array.isArray(imgs)) {
+      (imgs as Object[]).forEach((iv: Object) => {
+        let u = '';
+        if (typeof iv === 'string') {
+          u = iv;
+        } else if (typeof iv === 'object' && iv !== null) {
+          u = asStr((iv as Record<string, Object>)['url']);
+        }
+        if (u !== '') {
+          blocks.push(imageBlock(u));
+        }
+      });
+    }
+    // 兼容 text/images 形态
+    const text = asStr(obj['text']);
+    if (blocks.length === 0 && text !== '') {
+      pushTextBlocks(blocks, text);
+    }
+    const images = obj['images'];
+    if (Array.isArray(images)) {
+      (images as Object[]).forEach((iv: Object) => {
+        const u = asStr((iv as Record<string, Object>)['url']);
+        if (u !== '') {
+          blocks.push(imageBlock(u));
+        }
+      });
+    }
+  } catch (e) {
+    // 不是合法 JSON，返回空由调用方按纯文本处理
   }
   return blocks;
 }
@@ -245,7 +289,6 @@ export class PostModels {
           sc = scRaw as Record<string, Object>;
         }
         if (sc !== null) {
-          // 按对象键判断形态，不依赖 view_type 字符串值（字符串解析后该键可能不在顶层）
           if (sc['ops'] !== undefined) {
             blocks = parseDelta(sc);
           } else if (sc['imgs'] !== undefined) {
@@ -282,13 +325,17 @@ export class PostModels {
       // 整体解析失败时保留已提取字段，blocks 走下方兜底
     }
 
-    // 结构化解析未产出块时：content 含 HTML 则走 HTML 解析，否则纯文本兜底
+    // 结构化解析未产出块时：content 按 JSON / HTML / 纯文本三种形态分别处理
     if (blocks.length === 0 && contentText.trim() !== '') {
-      if (contentText.indexOf('<') >= 0 && contentText.indexOf('>') >= 0) {
+      const trimmed = contentText.trim();
+      if (trimmed.startsWith('{')) {
+        blocks = parseJsonContent(trimmed);
+      }
+      if (blocks.length === 0 && contentText.indexOf('<') >= 0 && contentText.indexOf('>') >= 0) {
         blocks = parseHtml(contentText);
       }
       if (blocks.length === 0) {
-        blocks.push(textBlock(contentText.trim()));
+        pushTextBlocks(blocks, trimmed);
       }
     }
 
