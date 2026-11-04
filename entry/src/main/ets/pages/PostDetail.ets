@@ -3,6 +3,7 @@ import { PostApi } from '../net/PostApi';
 import { PostModels, PostDetail, PostBlock } from '../model/PostModels';
 import { ReplyModels, ReplyItem } from '../model/ReplyModels';
 import { GlassTheme } from '../view/GlassTheme';
+import { AdaptiveImage } from '../view/AdaptiveImage';
 import { formatCount } from '../model/FeedModels';
 
 interface RouteParams {
@@ -218,17 +219,15 @@ struct PostDetailPage {
         .lineHeight(24)
         .width('100%')
     } else if (block.kind === 'image') {
-      // 固定高度 + 占位底色：布局在图片下载完成前就稳定，消除文本先出、图片后撑开的割裂感；点按仍可全屏看原图
-      Image(block.imageUrl)
-        .width('100%')
-        .height(220)
-        .borderRadius(10)
-        .objectFit(ImageFit.Cover)
-        .backgroundColor('#F2F4F7')
-        .onClick(() => {
+      // 先 16:9 占位，加载后按真实比例微调（AdaptiveImage 内部处理）
+      AdaptiveImage({
+        imageUrl: block.imageUrl,
+        radius: 10,
+        onTap: () => {
           this.previewUrl = block.imageUrl;
           this.showPreview = true;
-        })
+        }
+      })
     } else {
       Column() {
         Text('此内容块暂不支持展示')
@@ -309,17 +308,18 @@ struct PostDetailPage {
       }
       if (item.images.length > 0) {
         ForEach(item.images, (imgUrl: string) => {
-          Image(imgUrl)
-            .width('100%')
-            .height(180)
-            .borderRadius(8)
-            .objectFit(ImageFit.Cover)
-            .backgroundColor('#F2F4F7')
-            .margin({ top: 6 })
-            .onClick(() => {
-              this.previewUrl = imgUrl;
-              this.showPreview = true;
+          Column() {
+            AdaptiveImage({
+              imageUrl: imgUrl,
+              radius: 8,
+              onTap: () => {
+                this.previewUrl = imgUrl;
+                this.showPreview = true;
+              }
             })
+          }
+          .width('100%')
+          .margin({ top: 6 })
         })
       }
       if (!isSub && item.subReplyCount > 0) {

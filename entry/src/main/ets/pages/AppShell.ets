@@ -23,7 +23,7 @@ struct AppShell {
       Column() {}.width('100%').height('100%').backgroundColor('#F7F8FA')
 
       // 系统 Tabs：barHeight(0) 隐藏自带页签条，保留自定义悬浮底栏；
-      // TabContent 自带懒加载 + 常驻保活 + 切换滑动动画 + 边缘横滑手势。
+      // TabContent 自带懒加载 + 常驻保活 + 边缘横滑手势。
       Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
         TabContent() {
           HomeTab()
@@ -75,7 +75,8 @@ struct AppShell {
           }.layoutWeight(1).padding({ top: 14, bottom: 14 })
             .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000').borderRadius(24)
             .onClick(() => {
-              this.currentTab = idx;
+              // 只走控制器驱动切换：直接写 currentTab 会让绑定的 index 属性瞬跳，吞掉滑动动画；
+              // changeIndex 动画结束后由 onChange 回填 currentTab，标题/高亮同步。
               this.tabsController.changeIndex(idx);
             })
         })
