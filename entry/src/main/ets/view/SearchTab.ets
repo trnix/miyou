@@ -76,22 +76,7 @@ export struct SearchTab {
 
   build() {
     Column({ space: 12 }) {
-      Row({ space: 10 }) {
-        Text('帖子搜索').fontSize(20).fontWeight(FontWeight.Medium)
-          .layoutWeight(1)
-        Row({ space: 4 }) {
-          Text('⚙️')
-            .fontSize(14)
-          Text('频道')
-            .fontSize(12)
-            .fontColor('#1570EF')
-        }
-        .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-        .borderRadius(12)
-        .backgroundColor('#E5F6FF')
-        .onClick(() => router.pushUrl({ url: 'pages/ForumHome', params: { gid: this.gids[this.game] } }))
-      }
-      .width('100%')
+      Text('帖子搜索').fontSize(20).fontWeight(FontWeight.Medium)
 
       Row({ space: 8 }) {
         TextInput({ placeholder: '输入关键词', text: this.keyword })
