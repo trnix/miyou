@@ -116,3 +116,16 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/main' }}
           make_latest: ${{ github.ref != 'refs/heads/main' }}
           files: dist/app-signed.hap
+
+      # 自动修剪：main 分支的 CI 预发布只保留最新 5 个，其余连 tag 一并删除。
+      # 只动 prerelease；v* 正式 tag 发布（prerelease=false）永不清理。
+      - name: Prune old CI prereleases (keep latest 5)
+        if: ${{ steps.sign.outputs.signed == 'true' && github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo "${{ github.repository }}" --limit 200 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease) | .tagName' | tail -n +6 | while read -r tag; do
+            echo "Pruning $tag"
+            gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          done
