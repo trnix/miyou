@@ -48,6 +48,17 @@ struct PostDetailPage {
     return this.getUIContext().px2vp(px);
   }
 
+  // 普通方法（非 Builder）与 Map 读操作，Builder 内只调用这两种入口，保证首层是 UI 组件语法。
+  private floorStateOf(replyId: string): SubFloorState {
+    const s = this.floorStates.get(replyId);
+    return s === undefined ? emptyFloorState() : s;
+  }
+
+  private isFloorExpanded(replyId: string): boolean {
+    const s = this.floorStates.get(replyId);
+    return s === undefined ? false : s.expanded;
+  }
+
   aboutToAppear(): void {
     const params = router.getParams() as RouteParams | undefined;
     this.postId = params && params.postId ? params.postId : '';
@@ -122,7 +133,6 @@ struct PostDetailPage {
     }
   }
 
-  // 用 reply_id 的数字部分当楼层 ID（reply_id 在接口里是数值字符串）。
   private floorIdOf(replyId: string): number {
     const n = Number(replyId);
     return isNaN(n) ? 0 : n;
@@ -308,14 +318,12 @@ struct PostDetailPage {
             })
         })
       }
-      // 楼中楼触发：只在主评论上显示子回复数，子评论本身不再展开
       if (!isSub && item.subReplyCount > 0) {
         Text(`共 ${item.subReplyCount} 条回复 ›`)
           .fontSize(12)
           .fontColor('#1570EF')
           .onClick(() => {
-            const cur = this.floorStates.get(item.replyId);
-            this.toggleFloor(item, !(cur?.expanded ?? false));
+            this.toggleFloor(item, !this.floorStateOf(item.replyId).expanded);
           })
       }
     }
@@ -325,43 +333,42 @@ struct PostDetailPage {
 
   @Builder
   SubFloorPanel(floor: ReplyItem) {
-    const state = this.floorStates.get(floor.replyId) ?? emptyFloorState();
-    if (state.expanded) {
+    if (this.isFloorExpanded(floor.replyId)) {
+      Divider()
+        .width(2)
+        .color('#2B1570EF')
+        .margin({ left: 8 })
       Column({ space: 8 }) {
-        Divider()
-          .width(2)
-          .color('#2B1570EF')
-          .margin({ left: 8 })
-        if (state.loading && state.replies.length === 0) {
+        if (this.floorStateOf(floor.replyId).loading && this.floorStateOf(floor.replyId).replies.length === 0) {
           Text('加载中…')
             .fontSize(12)
             .fontColor('#98A2B3')
             .padding({ left: 20 })
-        } else if (state.errorText !== '') {
-          Text(state.errorText)
+        } else if (this.floorStateOf(floor.replyId).errorText !== '') {
+          Text(this.floorStateOf(floor.replyId).errorText)
             .fontSize(12)
             .fontColor('#667085')
             .padding({ left: 20 })
           Button('重试')
             .fontSize(12)
             .onClick(() => this.loadSubReplies(floor, false))
-        } else if (state.replies.length === 0 && state.loaded) {
+        } else if (this.floorStateOf(floor.replyId).replies.length === 0 && this.floorStateOf(floor.replyId).loaded) {
           Text('子回复为空')
             .fontSize(12)
             .fontColor('#98A2B3')
             .padding({ left: 20 })
         } else {
-          ForEach(state.replies, (subItem: ReplyItem) => {
+          ForEach(this.floorStateOf(floor.replyId).replies, (subItem: ReplyItem) => {
             Column({ space: 6 }) {
               this.ReplyView(subItem, true)
             }
             .width('100%')
             .padding({ left: 20 })
           }, (subItem: ReplyItem) => subItem.replyId)
-          if (!state.isLast) {
-            Button(state.loading ? '加载中…' : '加载更多子回复')
+          if (!this.floorStateOf(floor.replyId).isLast) {
+            Button(this.floorStateOf(floor.replyId).loading ? '加载中…' : '加载更多子回复')
               .fontSize(12)
-              .enabled(!state.loading)
+              .enabled(!this.floorStateOf(floor.replyId).loading)
               .onClick(() => this.loadSubReplies(floor, true))
           }
         }
@@ -507,7 +514,6 @@ struct PostDetailPage {
                   ForEach(this.replies, (item: ReplyItem) => {
                     Column({ space: 8 }) {
                       this.ReplyView(item, false)
-                      // 楼中楼子回复面板：仅展开时才渲染
                       this.SubFloorPanel(item)
                     }
                     .width('100%')
