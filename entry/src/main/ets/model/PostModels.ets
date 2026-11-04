@@ -57,10 +57,12 @@ function imageBlock(url: string): PostBlock {
   return { kind: 'image', text: '', imageUrl: url };
 }
 
-// 长文本按换行拆分为多个段落块，页面层按段间距渲染，避免一堵墙式长文。
-function pushTextBlocks(blocks: PostBlock[], text: string): void {
-  const parts = text.split('\n');
-  parts.forEach((p: string) => {
+// 段落语义：空行（连续换行）为段落分隔，段内单换行保留为 Text 内换行。
+// 与「每行一块」的区别：同段各行不会被硬拆开，行距正常；段落之间由页面 Column 间距拉开。
+function pushParagraphs(blocks: PostBlock[], text: string): void {
+  const normalized = text.replace(/\r\n/g, '\n');
+  const paras = normalized.split(/\n{2,}/);
+  paras.forEach((p: string) => {
     const t = p.trim();
     if (t !== '') {
       blocks.push(textBlock(t));
@@ -81,20 +83,24 @@ function timeTextOf(ts: number): string {
 }
 
 // NORMAL（Quill-delta 风格）：{ insert: '...' } / { insert: { image: url } }
+// Quill 惯例每行一个 op 且尾部带 \n，空行为独立 '\n' op——先按序拼接完整文本，再按空行切分段落。
 function parseDelta(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const ops = sc['ops'];
   if (!Array.isArray(ops)) {
     return blocks;
   }
+  let pending = '';
   (ops as Object[]).forEach((op: Object) => {
     const o = op as Record<string, Object>;
     const ins = o['insert'];
     if (typeof ins === 'string') {
-      pushTextBlocks(blocks, ins);
+      pending += ins;
     } else if (typeof ins === 'object' && ins !== null) {
       const io = ins as Record<string, Object>;
       const img = asStr(io['image']);
+      pushParagraphs(blocks, pending);
+      pending = '';
       if (img !== '') {
         blocks.push(imageBlock(img));
       } else {
@@ -102,6 +108,7 @@ function parseDelta(sc: Record<string, Object>): PostBlock[] {
       }
     }
   });
+  pushParagraphs(blocks, pending);
   return blocks;
 }
 
@@ -110,7 +117,7 @@ function parsePic(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const desc = asStr(sc['describe']);
   if (desc.trim() !== '') {
-    pushTextBlocks(blocks, desc.trim());
+    pushParagraphs(blocks, desc.trim());
   }
   const imgs = sc['imgs'];
   if (Array.isArray(imgs)) {
@@ -134,7 +141,7 @@ function parseUgc(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const text = asStr(sc['text']);
   if (text.trim() !== '') {
-    pushTextBlocks(blocks, text.trim());
+    pushParagraphs(blocks, text.trim());
   }
   const imgs = sc['images'];
   if (Array.isArray(imgs)) {
@@ -162,9 +169,9 @@ function decodeEntities(s: string): string {
 
 function htmlToText(s: string): string {
   const withBreaks = s
-    .replace(/<br\s*\/?>/i, '\n')
-    .replace(/<\/p>/i, '\n')
-    .replace(/<\/div>/i, '\n');
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n\n');
   return decodeEntities(withBreaks.replace(/<[^>]*>/g, '')).trim();
 }
 
@@ -174,10 +181,10 @@ function parseHtml(html: string): PostBlock[] {
   while (rest.length > 0) {
     const imgIdx = rest.indexOf('<img');
     if (imgIdx < 0) {
-      pushTextBlocks(blocks, htmlToText(rest));
+      pushParagraphs(blocks, htmlToText(rest));
       break;
     }
-    pushTextBlocks(blocks, htmlToText(rest.substring(0, imgIdx)));
+    pushParagraphs(blocks, htmlToText(rest.substring(0, imgIdx)));
     const tagEnd = rest.indexOf('>', imgIdx);
     if (tagEnd < 0) {
       break;
@@ -203,7 +210,7 @@ function parseJsonContent(content: string): PostBlock[] {
     const obj = JSON.parse(content) as Record<string, Object>;
     const desc = asStr(obj['describe']);
     if (desc !== '') {
-      pushTextBlocks(blocks, desc);
+      pushParagraphs(blocks, desc);
     }
     const imgs = obj['imgs'];
     if (Array.isArray(imgs)) {
@@ -222,7 +229,7 @@ function parseJsonContent(content: string): PostBlock[] {
     // 兼容 text/images 形态
     const text = asStr(obj['text']);
     if (blocks.length === 0 && text !== '') {
-      pushTextBlocks(blocks, text);
+      pushParagraphs(blocks, text);
     }
     const images = obj['images'];
     if (Array.isArray(images)) {
@@ -335,7 +342,7 @@ export class PostModels {
         blocks = parseHtml(contentText);
       }
       if (blocks.length === 0) {
-        pushTextBlocks(blocks, trimmed);
+        pushParagraphs(blocks, trimmed);
       }
     }
 

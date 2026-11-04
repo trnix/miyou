@@ -25,6 +25,10 @@ export struct SearchTab {
 
   private async run(more: boolean): Promise<void> {
     if (more && (this.loading || this.end)) { return; }
+    // 发起新搜索时主动清焦点，收起输入法键盘
+    if (!more) {
+      this.getUIContext().getFocusController().clearFocus();
+    }
     const q = more ? this.submitted : this.keyword.trim();
     if (q === '') {
       this.epoch++;
