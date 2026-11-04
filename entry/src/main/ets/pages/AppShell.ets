@@ -10,20 +10,26 @@ struct AppShell {
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State currentTab: number = 0;
+  // Tab 保活标记必须是 @State：普通字段写在 if 条件里不会被框架依赖追踪，
+  // 首次合成后分支不再求值，组件永远不挂载（上版社区/我的空白的根因）。
+  @State visitedHome: boolean = true;
+  @State visitedCommunity: boolean = false;
+  @State visitedMine: boolean = false;
   private tabTitles: string[] = ['首页', '社区', '我的'];
   private readonly topBar: number = 56;
-  // Tab 保活：首次访问才挂载（懒加载），之后用 visibility 隐藏而非销毁，切换不再重新拉数据
-  private visited: boolean[] = [true, false, false];
 
   private vp(px: number): number {
     return this.getUIContext().px2vp(px);
   }
 
   private switchTab(idx: number): void {
-    if (this.currentTab === idx) {
-      return;
+    if (idx === 0) {
+      this.visitedHome = true;
+    } else if (idx === 1) {
+      this.visitedCommunity = true;
+    } else {
+      this.visitedMine = true;
     }
-    this.visited[idx] = true;
     this.currentTab = idx;
   }
 
@@ -31,7 +37,7 @@ struct AppShell {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {}.width('100%').height('100%').backgroundColor('#F7F8FA')
       Stack() {
-        if (this.visited[0]) {
+        if (this.visitedHome) {
           Column() {
             HomeTab()
           }
@@ -39,7 +45,7 @@ struct AppShell {
           .height('100%')
           .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.Hidden)
         }
-        if (this.visited[1]) {
+        if (this.visitedCommunity) {
           Column() {
             SearchTab()
           }
@@ -48,7 +54,7 @@ struct AppShell {
           .padding({ top: this.topBar + this.vp(this.safeTopPx) })
           .visibility(this.currentTab === 1 ? Visibility.Visible : Visibility.Hidden)
         }
-        if (this.visited[2]) {
+        if (this.visitedMine) {
           Column() {
             MineTab()
           }
