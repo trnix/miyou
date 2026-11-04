@@ -229,10 +229,17 @@ struct CommunityPage {
         .fontWeight(FontWeight.Medium)
         .layoutWeight(1)
         .textAlign(TextAlign.Center)
-      Text('频道设置')
-        .fontSize(13)
-        .fontColor('#1570EF')
-        .onClick(() => router.pushUrl({ url: 'pages/ForumHome', params: { gid: '2' } }))
+      Row({ space: 4 }) {
+        Text('⚙️')
+          .fontSize(14)
+        Text('频道设置')
+          .fontSize(13)
+          .fontColor('#1570EF')
+      }
+      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+      .borderRadius(14)
+      .backgroundColor('#E5F6FF')
+      .onClick(() => router.pushUrl({ url: 'pages/ForumHome', params: { gid: '2' } }))
     }
     .width('100%')
     .height(56 + this.vp(this.safeTopPx))
