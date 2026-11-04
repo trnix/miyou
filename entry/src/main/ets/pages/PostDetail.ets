@@ -14,6 +14,7 @@ interface RouteParams {
 struct PostDetailPage {
   @StorageLink('glassLevel') glassLevel: number = 3;
   @StorageLink('safeTopPx') safeTopPx: number = 0;
+  @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State detail: PostDetail | null = null;
   @State loading: boolean = true;
   @State errorText: string = '';
