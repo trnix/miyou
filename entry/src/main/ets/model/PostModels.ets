@@ -17,6 +17,7 @@ export interface PostDetail {
   title: string;
   contentText: string;
   author: string;
+  authorUid: string;
   avatar: string;
   timeText: string;
   forumName: string;
@@ -58,7 +59,6 @@ function imageBlock(url: string): PostBlock {
 }
 
 // 段落语义：空行（连续换行）为段落分隔，段内单换行保留为 Text 内换行。
-// 与「每行一块」的区别：同段各行不会被硬拆开，行距正常；段落之间由页面 Column 间距拉开。
 function pushParagraphs(blocks: PostBlock[], text: string): void {
   const normalized = text.replace(/\r\n/g, '\n');
   const paras = normalized.split(/\n{2,}/);
@@ -82,8 +82,7 @@ function timeTextOf(ts: number): string {
   return `${mm}-${dd} ${hh}:${mi}`;
 }
 
-// NORMAL（Quill-delta 风格）：{ insert: '...' } / { insert: { image: url } }
-// Quill 惯例每行一个 op 且尾部带 \n，空行为独立 '\n' op——先按序拼接完整文本，再按空行切分段落。
+// NORMAL（Quill-delta）：{ insert: '...' } / { insert: { image: url } }
 function parseDelta(sc: Record<string, Object>): PostBlock[] {
   const blocks: PostBlock[] = [];
   const ops = sc['ops'];
@@ -203,7 +202,7 @@ function parseHtml(html: string): PostBlock[] {
   return blocks;
 }
 
-// post.content 为 JSON 字符串时的解析（用户帖常见形态）：结构与 parsePic 相同。
+// post.content 为 JSON 字符串时的解析（用户帖常见形态）
 function parseJsonContent(content: string): PostBlock[] {
   const blocks: PostBlock[] = [];
   try {
@@ -226,7 +225,6 @@ function parseJsonContent(content: string): PostBlock[] {
         }
       });
     }
-    // 兼容 text/images 形态
     const text = asStr(obj['text']);
     if (blocks.length === 0 && text !== '') {
       pushParagraphs(blocks, text);
@@ -257,6 +255,7 @@ export class PostModels {
     let title = '';
     let contentText = '';
     let author = '';
+    let authorUid = '';
     let avatar = '';
     let timeText = '';
     let forumName = '';
@@ -283,7 +282,6 @@ export class PostModels {
         const st = post['post_status'] as Record<string, Object> | undefined;
         isOfficial = st ? asBool(st['is_official']) : false;
 
-        // 结构化正文归一：structured_content 可能是字符串（需先 JSON.parse）或对象
         const scRaw = post['structured_content'];
         let sc: Record<string, Object> | null = null;
         if (typeof scRaw === 'string' && scRaw.trim() !== '') {
@@ -307,6 +305,7 @@ export class PostModels {
       }
       if (user) {
         author = asStr(user['nickname']);
+        authorUid = asStr(user['uid']);
         avatar = asStr(user['avatar_url']);
       }
       if (forum) {
@@ -332,7 +331,6 @@ export class PostModels {
       // 整体解析失败时保留已提取字段，blocks 走下方兜底
     }
 
-    // 结构化解析未产出块时：content 按 JSON / HTML / 纯文本三种形态分别处理
     if (blocks.length === 0 && contentText.trim() !== '') {
       const trimmed = contentText.trim();
       if (trimmed.startsWith('{')) {
@@ -348,7 +346,7 @@ export class PostModels {
 
     return {
       retcode, message, postId: postId2, title, contentText,
-      author, avatar, timeText, forumName, isOfficial,
+      author, authorUid, avatar, timeText, forumName, isOfficial,
       topics, viewNum, replyNum, likeNum, blocks
     };
   }

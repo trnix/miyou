@@ -4,6 +4,7 @@
 
 export interface ReplyItem {
   replyId: string;
+  authorUid: string;
   author: string;
   avatar: string;
   timeText: string;
@@ -62,7 +63,6 @@ function relTime(ts: number): string {
 function extractContent(raw: string): ExtractedContent {
   const images: string[] = [];
   let text = raw.trim();
-  // JSON 形态：{"describe":"...","imgs":[...]} 或类似
   if (text.startsWith('{') && text.endsWith('}')) {
     try {
       const obj = JSON.parse(text) as Record<string, Object>;
@@ -89,7 +89,6 @@ function extractContent(raw: string): ExtractedContent {
       // 不是合法 JSON，按原文处理
     }
   }
-  // HTML 形态：剥标签取纯文本，<img src> 提取为图片
   if (text.indexOf('<') >= 0 && text.indexOf('>') >= 0) {
     let rest = text;
     let out = '';
@@ -148,6 +147,7 @@ export class ReplyModels {
             const extracted = extractContent(reply ? asStr(reply['content']) : '');
             replies.push({
               replyId: rid,
+              authorUid: user ? asStr(user['uid']) : '',
               author: user ? asStr(user['nickname']) : '',
               avatar: user ? asStr(user['avatar_url']) : '',
               timeText: relTime(reply ? asNum(reply['created_at']) : 0),

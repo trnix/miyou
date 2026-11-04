@@ -14,7 +14,6 @@ interface RouteParams {
 struct PostDetailPage {
   @StorageLink('glassLevel') glassLevel: number = 3;
   @StorageLink('safeTopPx') safeTopPx: number = 0;
-  @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State detail: PostDetail | null = null;
   @State loading: boolean = true;
   @State errorText: string = '';
@@ -53,7 +52,6 @@ struct PostDetailPage {
         this.detail = d;
         this.loadReplies(false);
       } else {
-        // 「请升级版本查看」是服务器对旧版客户端的拒绝文案，转为用户可理解的提示
         if (d.message.indexOf('升级') >= 0) {
           this.errorText = '该帖子为新版格式，暂不支持在米柚中查看，请使用官方 App 打开';
         } else {
@@ -67,7 +65,6 @@ struct PostDetailPage {
     }
   }
 
-  // 评论独立异步加载，不阻塞正文；more=true 时按 last_id 游标翻页并去重合并。
   private async loadReplies(more: boolean): Promise<void> {
     if (this.replyLoading) {
       return;
@@ -168,11 +165,21 @@ struct PostDetailPage {
           .height(32)
           .borderRadius(16)
           .alt($r('app.media.app_icon'))
+          .onClick(() => {
+            if (item.authorUid !== '') {
+              router.pushUrl({ url: 'pages/UserProfile', params: { uid: item.authorUid } });
+            }
+          })
         Column({ space: 2 }) {
           Text(item.author)
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
             .fontColor('#344054')
+            .onClick(() => {
+              if (item.authorUid !== '') {
+                router.pushUrl({ url: 'pages/UserProfile', params: { uid: item.authorUid } });
+              }
+            })
           Text(item.timeText)
             .fontSize(11)
             .fontColor('#98A2B3')
@@ -193,7 +200,6 @@ struct PostDetailPage {
           .lineHeight(21)
           .width('100%')
       }
-      // 评论内嵌图片（JSON/HTML 提取的 imgs）
       if (item.images.length > 0) {
         ForEach(item.images, (imgUrl: string) => {
           Image(imgUrl)
@@ -245,7 +251,7 @@ struct PostDetailPage {
         } else if (this.detail !== null) {
           Scroll() {
             Column({ space: 14 }) {
-              // 作者卡
+              // 作者卡（可点击进入用户主页）
               Row({ space: 10 }) {
                 Image(this.detail!.avatar)
                   .width(44)
@@ -273,8 +279,16 @@ struct PostDetailPage {
                 }
                 .alignItems(HorizontalAlign.Start)
                 .layoutWeight(1)
+                Text('›')
+                  .fontSize(20)
+                  .fontColor('#C0C4CC')
               }
               .width('100%')
+              .onClick(() => {
+                if (this.detail!.authorUid !== '') {
+                  router.pushUrl({ url: 'pages/UserProfile', params: { uid: this.detail!.authorUid } });
+                }
+              })
 
               // 标题
               if (this.detail!.title !== '') {
