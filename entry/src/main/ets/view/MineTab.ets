@@ -7,7 +7,8 @@ import { UserModels, UserProfile } from '../model/UserModels';
 
 @Component
 export struct MineTab {
-  @StorageLink('cookie') cookie: string = '';
+  // Tab 保活后 aboutToAppear 只在首次触发；登录态变化通过 @Watch 重置并重拉资料
+  @StorageLink('cookie') @Watch('onSessionChange') cookie: string = '';
   @StorageLink('glassLevel') glassLevel: number = 3;
   @State versionName: string = '';
   @State profile: UserProfile | null = null;
@@ -21,27 +22,37 @@ export struct MineTab {
     }).catch(() => {
       this.versionName = '';
     });
-
-    // 已登录时拉用户资料供头像昵称展示；未登录保持空
     if (Session.loggedIn() && this.profile === null) {
-      const uid = Session.stuid();
-      if (uid !== '') {
-        this.loadingProfile = true;
-        UserApi.fetchUserFullInfo(uid, '2')
-          .then((raw) => {
-            const p = UserModels.parseProfile(raw.body);
-            if (p.retcode === 0) {
-              this.profile = p;
-            }
-          })
-          .catch(() => {
-            // 静默失败，不阻塞界面
-          })
-          .finally(() => {
-            this.loadingProfile = false;
-          });
-      }
+      this.loadProfile();
     }
+  }
+
+  onSessionChange(): void {
+    this.profile = null;
+    if (Session.loggedIn()) {
+      this.loadProfile();
+    }
+  }
+
+  private loadProfile(): void {
+    const uid = Session.stuid();
+    if (uid === '') {
+      return;
+    }
+    this.loadingProfile = true;
+    UserApi.fetchUserFullInfo(uid, '2')
+      .then((raw) => {
+        const p = UserModels.parseProfile(raw.body);
+        if (p.retcode === 0) {
+          this.profile = p;
+        }
+      })
+      .catch(() => {
+        // 静默失败，不阻塞界面
+      })
+      .finally(() => {
+        this.loadingProfile = false;
+      });
   }
 
   build() {
@@ -84,6 +95,7 @@ export struct MineTab {
                   .width(56)
                   .height(56)
                   .borderRadius(28)
+                  .backgroundColor('#F2F4F7')
                   .alt($r('app.media.app_icon'))
               } else {
                 Row() {
@@ -185,5 +197,6 @@ export struct MineTab {
     }
     .width('100%')
     .height('100%')
+    .scrollBar(BarState.Off)
   }
 }

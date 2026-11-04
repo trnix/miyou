@@ -135,7 +135,10 @@ export struct SearchTab {
             }
           }.width('100%').padding({ top: 16, bottom: 110 + this.getUIContext().px2vp(this.safeBottomPx) })
         }
-      }.width('100%').layoutWeight(1)
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
     }.width('100%').height('100%').padding({ left: 16, right: 16, top: 12 })
   }
 }

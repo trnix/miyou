@@ -147,6 +147,7 @@ export struct HomeTab {
         .height(120)
         .borderRadius(8)
         .objectFit(ImageFit.Cover)
+        .backgroundColor('#F2F4F7')
       if (showMore) {
         Column() {
           Text(`+${moreCount}`)
@@ -172,6 +173,7 @@ export struct HomeTab {
           .width(40)
           .height(40)
           .borderRadius(20)
+          .backgroundColor('#F2F4F7')
           .alt($r('app.media.app_icon'))
         Column({ space: 2 }) {
           Row({ space: 6 }) {
@@ -231,6 +233,7 @@ export struct HomeTab {
           .height(180)
           .borderRadius(8)
           .objectFit(ImageFit.Cover)
+          .backgroundColor('#F2F4F7')
       } else if (post.images.length > 1) {
         Column({ space: 8 }) {
           Row({ space: 8 }) {
@@ -343,6 +346,7 @@ export struct HomeTab {
           .padding({ left: 12, right: 12 })
           .contentStartOffset(this.topOffset())
           .contentEndOffset(this.bottomOffset())
+          .scrollBar(BarState.Off)
           .onReachEnd(() => {
             this.loadMore();
           })

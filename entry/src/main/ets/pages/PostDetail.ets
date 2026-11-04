@@ -218,11 +218,13 @@ struct PostDetailPage {
         .lineHeight(24)
         .width('100%')
     } else if (block.kind === 'image') {
+      // 固定高度 + 占位底色：布局在图片下载完成前就稳定，消除文本先出、图片后撑开的割裂感；点按仍可全屏看原图
       Image(block.imageUrl)
         .width('100%')
+        .height(220)
         .borderRadius(10)
         .objectFit(ImageFit.Cover)
-        .constraintSize({ maxHeight: 420 })
+        .backgroundColor('#F2F4F7')
         .onClick(() => {
           this.previewUrl = block.imageUrl;
           this.showPreview = true;
@@ -268,6 +270,7 @@ struct PostDetailPage {
           .width(32)
           .height(32)
           .borderRadius(16)
+          .backgroundColor('#F2F4F7')
           .alt($r('app.media.app_icon'))
           .onClick(() => {
             if (item.authorUid !== '') {
@@ -308,9 +311,10 @@ struct PostDetailPage {
         ForEach(item.images, (imgUrl: string) => {
           Image(imgUrl)
             .width('100%')
+            .height(180)
             .borderRadius(8)
             .objectFit(ImageFit.Cover)
-            .constraintSize({ maxHeight: 300 })
+            .backgroundColor('#F2F4F7')
             .margin({ top: 6 })
             .onClick(() => {
               this.previewUrl = imgUrl;
@@ -412,6 +416,7 @@ struct PostDetailPage {
                   .width(44)
                   .height(44)
                   .borderRadius(22)
+                  .backgroundColor('#F2F4F7')
                   .alt($r('app.media.app_icon'))
                 Column({ space: 2 }) {
                   Row({ space: 6 }) {
@@ -534,6 +539,7 @@ struct PostDetailPage {
           }
           .layoutWeight(1)
           .width('100%')
+          .scrollBar(BarState.Off)
         }
       }
       .width('100%')

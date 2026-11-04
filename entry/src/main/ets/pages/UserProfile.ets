@@ -131,6 +131,7 @@ struct UserProfilePage {
           .width(56)
           .height(56)
           .borderRadius(28)
+          .backgroundColor('#F2F4F7')
           .alt($r('app.media.app_icon'))
         Column({ space: 3 }) {
           Row({ space: 6 }) {
@@ -296,6 +297,7 @@ struct UserProfilePage {
           }
           .layoutWeight(1)
           .width('100%')
+          .scrollBar(BarState.Off)
         }
       }
       .width('100%')
