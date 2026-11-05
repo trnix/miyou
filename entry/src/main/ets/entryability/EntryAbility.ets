@@ -3,6 +3,7 @@ import { window } from '@kit.ArkUI';
 import { Session } from '../auth/Session';
 import { DeviceIdentity } from '../auth/DeviceIdentity';
 import { GlassTheme } from '../view/GlassTheme';
+import { GameTheme } from '../net/GameCatalog';
 
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null;
@@ -69,6 +70,7 @@ export default class EntryAbility extends UIAbility {
     Session.hydrate(this.context);
     DeviceIdentity.hydrate(this.context);
     GlassTheme.hydrate(this.context);
+    GameTheme.hydrate(this.context);
     windowStage.loadContent('pages/AppShell', (err) => {
       if (err.code) {
         console.error(`米柚启动失败: ${err.code} ${err.message}`);

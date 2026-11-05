@@ -4,6 +4,7 @@
     "pages/Login",
     "pages/QrLogin",
     "pages/PostDetail",
-    "pages/UserProfile"
+    "pages/UserProfile",
+    "pages/ChannelManage"
   ]
 }
