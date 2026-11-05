@@ -6,73 +6,63 @@ import { Session } from '../auth/Session';
 export interface RawResult {
   httpCode: number;
   body: string;
-  headerText: string; // 响应头 JSON 序列化；供上层解析 Set-Cookie 等，界面不得直接展示（可能含凭据）
+  headerText: string; // 可能含凭据，界面不得展示。
 }
 
-// 统一请求封装：x-rpc 基线头 + device 身份 + 可选 Cookie。
-// 调用方负责解析 retcode；网络异常直接抛错，由页面层兜底展示。
 export class MysHttp {
   static buildHeaders(withCookie: boolean): Record<string, string> {
     const headers: Record<string, string> = {
-      'x-rpc-app_version': Endpoints.APP_VERSION,
-      'x-rpc-client_type': Endpoints.CLIENT_TYPE,
-      'x-rpc-verify_key': Endpoints.VERIFY_KEY,
-      'x-rpc-device_id': DeviceIdentity.deviceId(),
-      'x-rpc-device_fp': DeviceIdentity.deviceFp(),
-      'Referer': Endpoints.REFERER,
-      'User-Agent': Endpoints.USER_AGENT
+      'x-rpc-app_version': Endpoints.APP_VERSION, 'x-rpc-client_type': Endpoints.CLIENT_TYPE,
+      'x-rpc-verify_key': Endpoints.VERIFY_KEY, 'x-rpc-device_id': DeviceIdentity.deviceId(),
+      'x-rpc-device_fp': DeviceIdentity.deviceFp(), 'Referer': Endpoints.REFERER, 'User-Agent': Endpoints.USER_AGENT
     };
-    if (withCookie) {
-      const cookie: string = Session.cookie();
-      if (cookie.length > 0) {
-        headers['Cookie'] = cookie;
-      }
-    }
+    if (withCookie && Session.cookie().length > 0) { headers['Cookie'] = Session.cookie(); }
     return headers;
   }
 
   private static toHeaderText(header: Object): string {
-    try {
-      return JSON.stringify(header);
-    } catch (e) {
-      return '';
-    }
+    try { return JSON.stringify(header); } catch (e) { return ''; }
   }
 
   static async request(url: string, headers: Record<string, string>): Promise<RawResult> {
     const req = http.createHttp();
     try {
       const res = await req.request(url, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.STRING,
-        header: headers,
-        connectTimeout: 10000,
-        readTimeout: 10000
+        method: http.RequestMethod.GET, expectDataType: http.HttpDataType.STRING,
+        header: headers, connectTimeout: 10000, readTimeout: 10000
       });
       const body = typeof res.result === 'string' ? res.result : JSON.stringify(res.result);
       return { httpCode: res.responseCode, body, headerText: MysHttp.toHeaderText(res.header) };
-    } finally {
-      req.destroy();
-    }
+    } finally { req.destroy(); }
   }
 
-  // JSON POST：extraData 传已序列化字符串，调用方负责 content-type 头。
   static async postJson(url: string, headers: Record<string, string>, body: string): Promise<RawResult> {
     const req = http.createHttp();
     try {
       const res = await req.request(url, {
-        method: http.RequestMethod.POST,
-        expectDataType: http.HttpDataType.STRING,
-        header: headers,
-        extraData: body,
-        connectTimeout: 10000,
-        readTimeout: 10000
+        method: http.RequestMethod.POST, expectDataType: http.HttpDataType.STRING,
+        header: headers, extraData: body, connectTimeout: 10000, readTimeout: 10000
       });
       const text = typeof res.result === 'string' ? res.result : JSON.stringify(res.result);
       return { httpCode: res.responseCode, body: text, headerText: MysHttp.toHeaderText(res.header) };
-    } finally {
-      req.destroy();
-    }
+    } finally { req.destroy(); }
+  }
+
+  // 媒体下载不携带会话、设备指纹或 x-rpc 凭据；32 MiB 上限避免无界缓冲。
+  static async imageBytes(url: string): Promise<ArrayBuffer> {
+    if (!/^https?:\/\//i.test(url)) { throw new Error('图片地址不受支持'); }
+    const req = http.createHttp();
+    try {
+      const res = await req.request(url, {
+        method: http.RequestMethod.GET, expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        header: { 'Referer': 'https://www.miyoushe.com/', 'User-Agent': Endpoints.USER_AGENT },
+        connectTimeout: 10000, readTimeout: 20000, maxLimit: 32 * 1024 * 1024
+      });
+      if (res.responseCode !== 200 || !(res.result instanceof ArrayBuffer) || res.result.byteLength === 0) {
+        throw new Error('图片下载失败');
+      }
+      return res.result;
+    } finally { req.destroy(); }
   }
 
   static async getObject(url: string, withCookie: boolean): Promise<Object> {
@@ -80,18 +70,9 @@ export class MysHttp {
     return JSON.parse(raw.body) as Object;
   }
 
-  // 裸请求：仅 UA/Referer + 可选 Cookie，不带任何 x-rpc 头。用于与全头请求对照排障。
   static async getBare(url: string, withCookie: boolean): Promise<RawResult> {
-    const headers: Record<string, string> = {
-      'User-Agent': Endpoints.USER_AGENT,
-      'Referer': 'https://www.miyoushe.com/'
-    };
-    if (withCookie) {
-      const cookie: string = Session.cookie();
-      if (cookie.length > 0) {
-        headers['Cookie'] = cookie;
-      }
-    }
+    const headers: Record<string, string> = { 'User-Agent': Endpoints.USER_AGENT, 'Referer': 'https://www.miyoushe.com/' };
+    if (withCookie && Session.cookie().length > 0) { headers['Cookie'] = Session.cookie(); }
     return MysHttp.request(url, headers);
   }
 }
