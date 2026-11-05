@@ -51,12 +51,30 @@ struct PostDetailPage {
     return this.getUIContext().px2vp(px);
   }
 
+  private openPreview(url: string): void {
+    this.previewUrl = url;
+    this.previewScale = 1;
+    this.previewBaseScale = 1;
+    // 预览进场附带淡入+微缩放（见 PreviewLayer 的 transition 声明）
+    animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.showPreview = true;
+    });
+  }
+
+  private closePreview(): void {
+    // 预览关闭与 onBackPress 共用同一条 animateTo 退出动画（见 AGENTS.md 动画规范）
+    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+      this.showPreview = false;
+    });
+    this.previewUrl = '';
+    this.previewScale = 1;
+    this.previewBaseScale = 1;
+  }
+
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
   onBackPress(): boolean {
     if (this.showPreview) {
-      this.showPreview = false;
-      this.previewUrl = '';
-      this.previewScale = 1;
+      this.closePreview();
       return true;
     }
     return false;
@@ -160,12 +178,15 @@ struct PostDetailPage {
   }
 
   private async toggleFloor(reply: ReplyItem, expanded: boolean): Promise<void> {
-    this.updateFloor(reply.replyId, (s: SubFloorState) => {
-      s.expanded = expanded;
-      if (expanded && !s.loaded) {
-        s.loading = true;
-      }
-      return s;
+    // 展开/收起带动画（AGENTS.md 动画规范 · 200ms 条件层显隐）
+    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+      this.updateFloor(reply.replyId, (s: SubFloorState) => {
+        s.expanded = expanded;
+        if (expanded && !s.loaded) {
+          s.loading = true;
+        }
+        return s;
+      });
     });
     if (!expanded) {
       return;
@@ -236,12 +257,7 @@ struct PostDetailPage {
       AdaptiveImage({
         imageUrl: block.imageUrl,
         radius: 10,
-        onTap: () => {
-          this.previewUrl = block.imageUrl;
-          this.previewScale = 1;
-          this.previewBaseScale = 1;
-          this.showPreview = true;
-        }
+        onTap: () => this.openPreview(block.imageUrl)
       })
     } else {
       Column() {
@@ -327,12 +343,7 @@ struct PostDetailPage {
             AdaptiveImage({
               imageUrl: imgUrl,
               radius: 8,
-              onTap: () => {
-                this.previewUrl = imgUrl;
-                this.previewScale = 1;
-                this.previewBaseScale = 1;
-                this.showPreview = true;
-              }
+              onTap: () => this.openPreview(imgUrl)
             })
           }
           .width('100%')
@@ -355,11 +366,12 @@ struct PostDetailPage {
   @Builder
   SubFloorPanel(floor: ReplyItem) {
     if (this.isFloorExpanded(floor.replyId)) {
-      Divider()
-        .width(2)
-        .color('#2B1570EF')
-        .margin({ left: 8 })
+      // 楼层内容独立包装（因为展开 / 收起都靠 .transition，内部多一个裸子组件都不能多）
       Column({ space: 8 }) {
+        Divider()
+          .width(2)
+          .color('#2B1570EF')
+          .margin({ left: 8 })
         if (this.floorStateOf(floor.replyId).loading && this.floorStateOf(floor.replyId).replies.length === 0) {
           Text('加载中…')
             .fontSize(12)
@@ -397,6 +409,11 @@ struct PostDetailPage {
       .width('100%')
       .alignItems(HorizontalAlign.Start)
       .margin({ top: 4 })
+      .transition(
+        TransitionEffect.OPACITY
+          .combine(TransitionEffect.move(TransitionEdge.TOP))
+          .animation({ duration: 200, curve: Curve.EaseOut })
+      )
     }
   }
 
@@ -407,11 +424,7 @@ struct PostDetailPage {
         .width('100%')
         .height('100%')
         .backgroundColor('#000000')
-        .onClick(() => {
-          this.showPreview = false;
-          this.previewUrl = '';
-          this.previewScale = 1;
-        })
+        .onClick(() => this.closePreview())
       Image(this.previewUrl)
         .width('100%')
         .objectFit(ImageFit.Contain)
@@ -426,6 +439,11 @@ struct PostDetailPage {
     }
     .width('100%')
     .height('100%')
+    .transition(
+      TransitionEffect.OPACITY
+        .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
+        .animation({ duration: 220, curve: Curve.EaseOut })
+    )
     .gesture(
       PinchGesture({ fingers: 2 })
         .onActionUpdate((event?: GestureEvent) => {
@@ -615,7 +633,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原）
+      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原 + 进出场动画）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }
