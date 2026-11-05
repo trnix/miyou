@@ -25,6 +25,14 @@ function emptyFloorState(): SubFloorState {
   return { expanded: false, loading: false, loaded: false, replies: [], lastId: '', isLast: true, errorText: '' };
 }
 
+// 预览飞行终点：按图片真实宽高比计算的全屏适应矩形
+interface FitRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 @Entry
 @Component
 struct PostDetailPage {
@@ -38,7 +46,7 @@ struct PostDetailPage {
   @State showPreview: boolean = false;
   @State previewScale: number = 1;
   private previewBaseScale: number = 1;
-  // 预览一镜到底V3：纯布局动画（x/y/w/h/radius 连续变形），不设变换缩放
+  // 预览一镜到底V4：布局动画，终点为图片真实比例的适应矩形（非全屏），Cover 终点即 Contain 无过裁
   @State boxX: number = 0;
   @State boxY: number = 0;
   @State boxW: number = 0;
@@ -52,6 +60,10 @@ struct PostDetailPage {
   private lastThumbW: number = 0;
   private lastThumbH: number = 0;
   private lastThumbR: number = 0;
+  private lastFitX: number = 0;
+  private lastFitY: number = 0;
+  private lastFitW: number = 0;
+  private lastFitH: number = 0;
   private winW: number = 0;
   private winH: number = 0;
   private previewSeq: number = 0;
@@ -68,6 +80,20 @@ struct PostDetailPage {
     return this.getUIContext().px2vp(px);
   }
 
+  // 图片真实宽高比 → 全屏下的适应矩形（横图宽满屏垂直居中，竖图高满屏水平居中）
+  private fitRectFor(imgAspect: number): FitRect {
+    if (this.winW <= 0 || this.winH <= 0 || imgAspect <= 0) {
+      return { x: this.lastThumbX, y: this.lastThumbY, w: this.lastThumbW, h: this.lastThumbH };
+    }
+    const screenAspect = this.winW / this.winH;
+    if (imgAspect >= screenAspect) {
+      const h = this.winW / imgAspect;
+      return { x: 0, y: (this.winH - h) / 2, w: this.winW, h: h };
+    }
+    const w = this.winH * imgAspect;
+    return { x: (this.winW - w) / 2, y: 0, w: w, h: this.winH };
+  }
+
   private openPreview(url: string, rect: ThumbRect): void {
     const seq = ++this.previewSeq;
     this.previewUrl = url;
@@ -78,6 +104,13 @@ struct PostDetailPage {
     this.lastThumbW = rect.w;
     this.lastThumbH = rect.h;
     this.lastThumbR = rect.r;
+    // 终点 = 图片真实比例的适应矩形；真实宽高缺失时退化用缩略图比例估算
+    const imgAspect = rect.iw > 0 && rect.ih > 0 ? rect.iw / rect.ih : (rect.h > 0 ? rect.w / rect.h : 1);
+    const fit = this.fitRectFor(imgAspect);
+    this.lastFitX = fit.x;
+    this.lastFitY = fit.y;
+    this.lastFitW = fit.w;
+    this.lastFitH = fit.h;
     this.boxX = rect.x;
     this.boxY = rect.y;
     this.boxW = rect.w;
@@ -92,14 +125,15 @@ struct PostDetailPage {
         return;
       }
       animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-        this.boxX = 0;
-        this.boxY = 0;
-        this.boxW = this.winW;
-        this.boxH = this.winH;
+        this.boxX = fit.x;
+        this.boxY = fit.y;
+        this.boxW = fit.w;
+        this.boxH = fit.h;
         this.boxRadius = 0;
         this.scrimAlpha = 1;
       });
     }, 30);
+    // 终点矩形与图片同宽高比，Cover 恰好等于 Contain，交接两帧像素一致不可见
     setTimeout(() => {
       if (seq !== this.previewSeq || !this.showPreview) {
         return;
@@ -114,7 +148,7 @@ struct PostDetailPage {
   private closePreview(): void {
     const seq = ++this.previewSeq;
     if (this.containAlpha > 0) {
-      animateTo({ duration: 90, curve: Curve.EaseOut }, () => {
+      animateTo({ duration: 60, curve: Curve.EaseOut }, () => {
         this.containAlpha = 0;
         this.coverAlpha = 1;
       });
@@ -123,6 +157,7 @@ struct PostDetailPage {
       if (seq !== this.previewSeq) {
         return;
       }
+      // 从适应大小直接缩回缩略图，不经过全屏、无过裁
       animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
         this.boxX = this.lastThumbX;
         this.boxY = this.lastThumbY;
@@ -133,7 +168,7 @@ struct PostDetailPage {
         this.coverAlpha = 1;
         this.containAlpha = 0;
       });
-    }, 90);
+    }, 70);
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
@@ -142,7 +177,7 @@ struct PostDetailPage {
       this.previewUrl = '';
       this.previewScale = 1;
       this.previewBaseScale = 1;
-    }, 320);
+    }, 300);
   }
 
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
@@ -723,7 +758,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（Cover 矩形适变一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览）
+      // 图片全屏预览（适应矩形一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }

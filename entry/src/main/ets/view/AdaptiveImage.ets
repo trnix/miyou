@@ -4,7 +4,7 @@
 // - 横幅图（>2.4）：真实比例全显不横裁！按宽度档位控制高度预算（>8 限高 90、>4 限高 120、>2.4 限高 160），
 //   内容分布在图片两侧的横幅不再被 Cover 居中裁剪
 // - 极小图（<0.7 且真实尺寸小）：表情包/装饰图标，全显 + 限高 120，避免小图被拉成大图
-// 点击时把在位的全局 rect（vp 单位）+ 圆角一并上报，供预览层做 Cover 矩形适变的飞向动画。
+// 点击时把在位全局 rect + 圆角 + 图片真实宽高一并上报，供预览层计算适应飞行终点。
 
 // ArkTS 禁止内联对象字面量作类型声明，具名 interface 是必须的写法
 interface ImageCompleteInfo {
@@ -18,6 +18,8 @@ export interface ThumbRect {
   w: number;
   h: number;
   r: number;
+  iw: number;
+  ih: number;
 }
 
 @Component
@@ -31,6 +33,8 @@ export struct AdaptiveImage {
   private areaY: number = 0;
   private areaW: number = 0;
   private areaH: number = 0;
+  private imgW: number = 0;
+  private imgH: number = 0;
 
   private recordArea(_oldValue: Area, area: Area): void {
     // 布局动画中 x/y/w/h/radius 统一走 vp，与预览层坐标系对齐
@@ -41,7 +45,7 @@ export struct AdaptiveImage {
   }
 
   private emitTap(): void {
-    this.onTap({ x: this.areaX, y: this.areaY, w: this.areaW, h: this.areaH, r: this.radius });
+    this.onTap({ x: this.areaX, y: this.areaY, w: this.areaW, h: this.areaH, r: this.radius, iw: this.imgW, ih: this.imgH });
   }
 
   build() {
@@ -87,6 +91,9 @@ export struct AdaptiveImage {
     if (event === undefined || event.width <= 0 || event.height <= 0) {
       return;
     }
+    // 记录真实宽高，点击时供预览层计算适应飞行终点（不再需要估算）
+    this.imgW = event.width;
+    this.imgH = event.height;
     const r = event.width / event.height;
     if (r > 8) {
       // 超细 banner/分隔条：真实比例全显，限高徽标化，不主导屏幕高度

@@ -11,7 +11,7 @@
 - 端点与版本号集中在 `net/Endpoints.ets`；各 Api 类自管请求头，登录后经 `Session.cookie()` 附带 Cookie
 - 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
 - Tab 框架（AppShell）：系统 `Tabs` + 3 个 `TabContent`，`.barHeight(0)` 隐藏系统页签条，自定义悬浮药丸底栏保留；TabContent 天然懒挂载 + 常驻保活；切换动画只由 `TabsController.changeIndex` 驱动；`index` 参数**不绑定 @State**——它退化为纯点击高亮状态，点击时立刻写入（高光瞬移），页面滑动由控制器独立播放；`onChange` 同步横滑结果
-- 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例；每张缩略图用 onAreaChange 常驻记录全局 rect + 圆角（vp 单位）伴点击上报）；头像与信息流图片定高 + `#F2F4F7` 占位底色
+- 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例；每张缩略图用 onAreaChange 常驻记录全局 rect + 圆角 + 图片真实宽高伴点击上报）；头像与信息流图片定高 + `#F2F4F7` 占位底色
 - 全局滚动条隐藏：Scroll/List 统一 `.scrollBar(BarState.Off)`
 - 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
 
@@ -31,16 +31,15 @@
 
 - 统一曲线：`Curve.EaseOut`，全站任何动画不改曲线
 - 时长三级，按交互量级取用：
-  - **90ms 换图淡换**：同一位置两张渲染（预览 Cover→Contain）透明度互换时使用
+  - **90ms 交接淡换**：预览飞行到达后 Cover 与 Contain 两帧像素一致，90ms 交叉只是保险
   - **180ms 布局微调**：组件自尺寸变化（AdaptiveImage 图片占位 → 真实比例过渡）
   - **200~220ms 条件层显隐 / 一镜到底飞行**：预览、楼中楼展开面板、图片预览进出
   - **280ms 页面级切换**：仅系统 Tabs 滑动动画使用；页面路由转场用系统默认，不自定义时长
-- 图片预览进出的最终方案 = **Cover 矩形适变**（不用位变换缩放也不整层透明度动画）：
-  - 起点：预览层里 Cover 图片的 `position+width+height+borderRadius` 设为缩略图 rect（onAreaChange 记录，vp 单位），scrim 透明
-  - 过程：animateTo(220ms) 把布局矩形连续变到全屏（x/y/w/h 目标为 0/0/winW/winH），Cover 的裁切窗口随布局重排，任何中间帧画面都与原图几何连续，没有内容跳变
-  - 到达：setTimeout 后 animateTo(90ms) 把 Cover 透明度降到 0、全屏 Contain 同图淡到 1（两帧都是满尺寸，交叉几乎无感）
-  - 关闭：先 90ms 淡回 Cover，再 220ms 布局动画飞回缩略图 rect，动画结束后卸载预览层
-  - 反面教材（已实测淘汰）：scale/translate 飞行有帧差与终点偏移；整层透明度淡出出现幽灵；不透明缩放出现黑块变形
+- 图片预览进出的最终方案 = **适应矩形适变**：
+  - 飞行终点**不是全屏矩形**！而是按图片真实宽高比（AdaptiveImage 经 onComplete 记录并上报）计算的全屏适应矩形：横图宽满屏垂直居中、竖图高满屏水平居中
+  - 终点矩形与图片同宽高比 → **Cover 在终点恰好等于 Contain**，无过裁、无回缩；到达后 90ms 交接给手势 Contain 图（两帧像素一致，交接不可见）
+  - 关闭：从适应大小直接布局动画缩回缩略图 rect（不经过全屏），圆角收回、黑底渐隐，动画结束后卸载
+  - 反面教材（已实测淘汰）：scale/translate 飞行有帧差与终点偏移；整层透明度淡出出现幽灵；不透明缩放出现黑块变形；**Cover 飞到全屏矩形**导致横图被过裁放大成中心局部、视觉上“撑过全屏再缩回”（V3 教训）
 - `onBackPress()` 拦截返回的路径必须与普通关闭共用一个函数，不能另起一条无动画的退出路径
 - 手势交互（捏合缩放、拖移、横滑）瞬时跟随手指，**不设动画时长**；手势结束后的收尾才用 animateTo
 - 图片预览双指缩放只作用于到达后的 Contain 图：`previewBaseScale` 暂存倍数，缩小下限 1.0，上限 6，双击还原
@@ -79,14 +78,14 @@
 | 我的 | ✅ 登录身份卡（头像/昵称/UID/简介/四项数据，@Watch 随登录态刷新）+ 沉浸光感开关 + 动态版本号 |
 | 登录 | ✅ 官方网页登录 + 扫码登录，Cookie 清洗持久化 |
 | Tab 框架 | ✅ 系统 Tabs 滑动动画 + 横滑手势 + 保活不重载 + 点击高光即时同步 |
-| 图片体验 | ✅ AdaptiveImage 智能比例（横幅不横裁 rect+圆角上报）+ 预览 Cover 矩形适变一镜到底 + 捏合缩放 / 双击还原 + 侧滑只关预览 |
-| 动画规范 | ✅ 全站统一 Curve.EaseOut；预览 = Cover 矩形适变 + scrim 渐变 + 90ms 换图淡换；楼中楼 transition + animateTo |
+| 图片体验 | ✅ AdaptiveImage 智能比例（横幅不横裁 上报真实宽高）+ 预览适应矩形一镜到底（Cover 终点即 Contain）+ 捏合缩放 / 双击还原 + 侧滑只关预览 |
+| 动画规范 | ✅ 全站统一 Curve.EaseOut；预览 = 适应矩形适变 + scrim 渐变 + 90ms 交接；楼中楼 transition + animateTo |
 | 消息 | ❌ 入口已移除（官方接口未接入） |
 | 版区频道页 | ❌ R7 取消（降级后与首页重叠，ForumHome.ets 已删） |
 | 游戏战绩 | ❌ R4 放弃（DS 签名链路复杂度高，相关文件已删） |
 
 ## 当前进度
 
-v0.7.0：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；预览动画完成 3 轮探索终代 V3 = Cover 矩形适变（无帧差、无遮罩变形、无透明幽灵）；动画规范统一；MineTab 身份卡；死代码清理。
+v0.7.0：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；预览动画 4 轮迭代定稿 = 适应矩形适变（无帧差、无过裁回缩、无幽灵）；动画规范统一；MineTab 身份卡；死代码清理。
 
 原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。
