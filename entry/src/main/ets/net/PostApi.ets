@@ -25,17 +25,26 @@ export class PostApi {
     return headers;
   }
 
-  // 诊断探针：不抛异常（HTTP 状态码原样带回），body 截断到 1500 字防长文撑爆面板。
-  // 仅用于 PostDetail 错误页的变体对照，不带任何写行为。
-  static async probeQuery(query: string): Promise<PostProbe> {
-    const url = 'https://bbs-api.miyoushe.com/post/wapi/getPostFull?' + query;
+  private static async doProbe(url: string): Promise<PostProbe> {
     try {
       const raw = await MysHttp.request(url, PostApi.headers());
-      const body = raw.body.length > 1500 ? raw.body.substring(0, 1500) : raw.body;
+      const body = raw.body.length > 3000 ? raw.body.substring(0, 3000) : raw.body;
       return { url, httpCode: raw.httpCode, bodyExcerpt: body };
     } catch (e) {
       return { url, httpCode: 0, bodyExcerpt: '(请求异常：网络不可达或被拦截)' };
     }
+  }
+
+  // 诊断探针：不抛异常（HTTP 状态码原样带回）。
+  // 仅用于 PostDetail 错误页的变体对照，不带任何写行为。
+  static async probeQuery(query: string): Promise<PostProbe> {
+    const url = 'https://bbs-api.miyoushe.com/post/wapi/getPostFull?' + query;
+    return PostApi.doProbe(url);
+  }
+
+  // 任意 URL 探针（用于网页页 HTML 变体对照）
+  static async probeUrl(url: string): Promise<PostProbe> {
+    return PostApi.doProbe(url);
   }
 
   // read=1：对齐上游实现（TeyvatGuide getPostFull 参数 { post_id, read: 1 }）；
