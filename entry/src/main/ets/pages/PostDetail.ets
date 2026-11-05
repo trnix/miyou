@@ -33,6 +33,12 @@ interface FitRect {
   h: number;
 }
 
+// 预览飞行图 onComplete（与 AdaptiveImage 内同名接口组件各自局部声明即可）
+interface PreviewImageInfo {
+  width: number;
+  height: number;
+}
+
 @Entry
 @Component
 struct PostDetailPage {
@@ -46,15 +52,14 @@ struct PostDetailPage {
   @State showPreview: boolean = false;
   @State previewScale: number = 1;
   private previewBaseScale: number = 1;
-  // 预览一镜到底V4：布局动画，终点为图片真实比例的适应矩形（非全屏），Cover 终点即 Contain 无过裁
+  // 预览一镜到底 V5 单图：飞行与手势同一 Image 节点（无任何交接窗口），终点为真实比例适应矩形
   @State boxX: number = 0;
   @State boxY: number = 0;
   @State boxW: number = 0;
   @State boxH: number = 0;
   @State boxRadius: number = 0;
   @State scrimAlpha: number = 0;
-  @State coverAlpha: number = 1;
-  @State containAlpha: number = 0;
+  @State flyingAlpha: number = 0; // 解码门控：上层图未解码时不画，底下的真缩略图依然可见
   private lastThumbX: number = 0;
   private lastThumbY: number = 0;
   private lastThumbW: number = 0;
@@ -117,9 +122,18 @@ struct PostDetailPage {
     this.boxH = rect.h;
     this.boxRadius = rect.r;
     this.scrimAlpha = 0;
-    this.coverAlpha = 1;
-    this.containAlpha = 0;
+    this.flyingAlpha = 0;
     this.showPreview = true;
+    // 飞行图解码完成时显影（底下就是同位真缩略图，此期间预览层透明 = 像素一致）
+    setTimeout(() => {
+      if (seq !== this.previewSeq) {
+        return;
+      }
+      // 500ms 兜底：加载异常也得亮出占位底，保证交互可退出
+      if (this.flyingAlpha === 0) {
+        this.flyingAlpha = 1;
+      }
+    }, 500);
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
@@ -133,31 +147,24 @@ struct PostDetailPage {
         this.scrimAlpha = 1;
       });
     }, 30);
-    // 终点矩形与图片同宽高比，Cover 恰好等于 Contain，交接两帧像素一致不可见
-    setTimeout(() => {
-      if (seq !== this.previewSeq || !this.showPreview) {
-        return;
-      }
-      animateTo({ duration: 90, curve: Curve.EaseOut }, () => {
-        this.coverAlpha = 0;
-        this.containAlpha = 1;
-      });
-    }, 250);
   }
 
   private closePreview(): void {
     const seq = ++this.previewSeq;
-    if (this.containAlpha > 0) {
-      animateTo({ duration: 60, curve: Curve.EaseOut }, () => {
-        this.containAlpha = 0;
-        this.coverAlpha = 1;
+    const needUnzoom = this.previewScale > 1.01;
+    // 看了放大的图：先把 scale 缩回 1，再开始飞回缩略图
+    if (needUnzoom) {
+      animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+        this.previewScale = 1;
+        this.previewBaseScale = 1;
       });
     }
+    const flyDelay = needUnzoom ? 200 : 30;
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
       }
-      // 从适应大小直接缩回缩略图，不经过全屏、无过裁
+      // 从适应大小直接缩回缩略图 rect（不经过全屏）
       animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
         this.boxX = this.lastThumbX;
         this.boxY = this.lastThumbY;
@@ -165,19 +172,17 @@ struct PostDetailPage {
         this.boxH = this.lastThumbH;
         this.boxRadius = this.lastThumbR;
         this.scrimAlpha = 0;
-        this.coverAlpha = 1;
-        this.containAlpha = 0;
       });
-    }, 70);
-    // 卸载前的淡出：预览 Cover 与底下的真缩略图同区域像素融合，消除硬切闪烁
+    }, flyDelay);
+    // 飞行结尾淡出 40ms 后与真缩略图融合，再卸载
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
       }
       animateTo({ duration: 40, curve: Curve.EaseOut }, () => {
-        this.coverAlpha = 0;
+        this.flyingAlpha = 0;
       });
-    }, 260);
+    }, flyDelay + 190);
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
@@ -186,7 +191,7 @@ struct PostDetailPage {
       this.previewUrl = '';
       this.previewScale = 1;
       this.previewBaseScale = 1;
-    }, 320);
+    }, flyDelay + 250);
   }
 
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
@@ -562,14 +567,16 @@ struct PostDetailPage {
         .borderRadius(this.boxRadius)
         .clip(true)
         .backgroundColor('#F2F4F7')
-        .opacity(this.coverAlpha)
-      Image(this.previewUrl)
-        .width('100%')
-        .height('100%')
-        .objectFit(ImageFit.Contain)
-        .backgroundColor('#000000')
-        .opacity(this.containAlpha)
+        .opacity(this.flyingAlpha)
         .scale({ x: this.previewScale, y: this.previewScale, z: 1 })
+        .onComplete((event?: PreviewImageInfo) => {
+          // 解码完成即显影；底下就是同位缩略图，90ms 显影与像素一致
+          if (event !== undefined && event.width > 0 && event.height > 0 && this.flyingAlpha < 1) {
+            animateTo({ duration: 90, curve: Curve.EaseOut }, () => {
+              this.flyingAlpha = 1;
+            });
+          }
+        })
         .gesture(
           PinchGesture({ fingers: 2 })
             .onActionUpdate((event?: GestureEvent) => {
@@ -586,8 +593,10 @@ struct PostDetailPage {
           TapGesture({ count: 2 })
             .onAction(() => {
               if (this.previewScale > 1.01) {
-                this.previewScale = 1;
-                this.previewBaseScale = 1;
+                animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+                  this.previewScale = 1;
+                  this.previewBaseScale = 1;
+                });
               }
             })
         )
@@ -769,7 +778,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（适应矩形一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览 + 双向防闪）
+      // 图片全屏预览 V5：单节点飞行 + 同一节点捏合缩放 + 解码门控显影 + 关闭先回缩放再飞回
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }
