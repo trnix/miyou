@@ -36,6 +36,8 @@ struct PostDetailPage {
   @State errorText: string = '';
   @State previewUrl: string = '';
   @State showPreview: boolean = false;
+  @State previewScale: number = 1;
+  private previewBaseScale: number = 1;
   @State replies: ReplyItem[] = [];
   @State replyLoading: boolean = false;
   @State replyError: string = '';
@@ -47,6 +49,17 @@ struct PostDetailPage {
 
   private vp(px: number): number {
     return this.getUIContext().px2vp(px);
+  }
+
+  // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
+  onBackPress(): boolean {
+    if (this.showPreview) {
+      this.showPreview = false;
+      this.previewUrl = '';
+      this.previewScale = 1;
+      return true;
+    }
+    return false;
   }
 
   // 普通方法（非 Builder）与 Map 读操作，Builder 内只调用这两种入口，保证首层是 UI 组件语法。
@@ -219,12 +232,14 @@ struct PostDetailPage {
         .lineHeight(24)
         .width('100%')
     } else if (block.kind === 'image') {
-      // 先 16:9 占位，加载后按真实比例微调（AdaptiveImage 内部处理）
+      // 先 16:9 占位，加载后按真实比例微调（AdaptiveImage 智能适应 banner/小图/长图）
       AdaptiveImage({
         imageUrl: block.imageUrl,
         radius: 10,
         onTap: () => {
           this.previewUrl = block.imageUrl;
+          this.previewScale = 1;
+          this.previewBaseScale = 1;
           this.showPreview = true;
         }
       })
@@ -314,6 +329,8 @@ struct PostDetailPage {
               radius: 8,
               onTap: () => {
                 this.previewUrl = imgUrl;
+                this.previewScale = 1;
+                this.previewBaseScale = 1;
                 this.showPreview = true;
               }
             })
@@ -381,6 +398,56 @@ struct PostDetailPage {
       .alignItems(HorizontalAlign.Start)
       .margin({ top: 4 })
     }
+  }
+
+  @Builder
+  PreviewLayer() {
+    Stack() {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#000000')
+        .onClick(() => {
+          this.showPreview = false;
+          this.previewUrl = '';
+          this.previewScale = 1;
+        })
+      Image(this.previewUrl)
+        .width('100%')
+        .objectFit(ImageFit.Contain)
+        .scale({ x: this.previewScale, y: this.previewScale, z: 1 })
+      Text('双指捏合缩放 · 双击还原 · 点击空白关闭')
+        .fontSize(11)
+        .fontColor('#99FFFFFF')
+        .position({ x: 0, y: 40 + this.vp(this.safeTopPx) })
+        .width('100%')
+        .textAlign(TextAlign.Center)
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .height('100%')
+    .gesture(
+      PinchGesture({ fingers: 2 })
+        .onActionUpdate((event?: GestureEvent) => {
+          if (event !== undefined) {
+            const s = this.previewBaseScale * event.scale;
+            this.previewScale = Math.min(6, Math.max(0.5, s));
+          }
+        })
+        .onActionEnd(() => {
+          this.previewBaseScale = this.previewScale;
+        })
+    )
+    .gesture(
+      TapGesture({ count: 2 })
+        .onAction(() => {
+          // 只要在放大状态双击就还原原尺寸；未放大时双击不响应，让点击空白关闭不受影响
+          if (this.previewScale > 1.01) {
+            this.previewScale = 1;
+            this.previewBaseScale = 1;
+          }
+        })
+    )
   }
 
   build() {
@@ -548,21 +615,9 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览
+      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原）
       if (this.showPreview && this.previewUrl !== '') {
-        Column() {
-          Image(this.previewUrl)
-            .width('100%')
-            .objectFit(ImageFit.Contain)
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor('#000000')
-        .justifyContent(FlexAlign.Center)
-        .onClick(() => {
-          this.showPreview = false;
-          this.previewUrl = '';
-        })
+        this.PreviewLayer()
       }
     }
     .width('100%')
