@@ -33,16 +33,19 @@ function obj(v: Object | undefined): Record<string, Object> {
   return {};
 }
 function arr(v: Object | undefined): Object[] { return Array.isArray(v) ? v as Object[] : []; }
+
+// 数组型Delta规范化为有明确类型的{ops:数组}，不能交给obj()直接丢弃。
+// 返回值仍是Record，避免Object上下文中的未定型空字面量。
 function parsed(v: Object | undefined): Record<string, Object> {
-  if (typeof v !== 'string') {
-    return obj(v);
+  let value: Object | undefined = v;
+  if (typeof v === 'string') {
+    try { value = JSON.parse(v) as Object; } catch (e) { return {}; }
   }
-  try {
-    const out = JSON.parse(v) as Object;
-    return obj(out);
-  } catch (e) {
-    return {};
+  if (Array.isArray(value)) {
+    const normalized: Record<string, Object> = { ops: value as Object[] };
+    return normalized;
   }
+  return obj(value);
 }
 function block(kind: string, text: string = '', imageUrl: string = '', runs: TextRun[] = [], videoUrl: string = ''): ContentBlock {
   return { kind, text, imageUrl, runs, videoUrl };
@@ -119,7 +122,7 @@ export class PostContentModels {
     let blocks: ContentBlock[] = base.blocks.map((b: PostBlock) => block(b.kind, b.text, b.imageUrl, linkRuns(b.text)));
     try {
       const structured = parsed(post['structured_content']);
-      const ops = Array.isArray(structured) ? structured as Object[] : arr(structured['ops']);
+      const ops = arr(structured['ops']);
       if (ops.length > 0) {
         const out: ContentBlock[] = [];
         const runs: TextRun[] = [];

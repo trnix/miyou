@@ -1,4 +1,5 @@
 import { MysHttp } from './MysHttp';
+import { PostContext } from './PostContext';
 
 export interface SearchPost {
   id: string;
@@ -20,8 +21,7 @@ function num(v: Object | undefined): number {
   return typeof v === 'number' ? v : 0;
 }
 export class SearchApi {
-  // Request/response reference: TeyvatGuide postReq.ts and types/BBS/Post.d.ts.
-  // Upstream reference is not proof of current service availability.
+  // 搜索返回中的post.game_id优先于当前选择频道；不把标题关键词当频道。
   static async search(gid: string, keyword: string, cursor: string, order: number): Promise<SearchResult> {
     const url = 'https://bbs-api.miyoushe.com/post/wapi/searchPosts' +
       `?gids=${encodeURIComponent(gid)}&keyword=${encodeURIComponent(keyword)}` +
@@ -32,17 +32,14 @@ export class SearchApi {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     });
-    if (raw.httpCode !== 200) {
-      throw new Error(`HTTP ${raw.httpCode}`);
-    }
+    if (raw.httpCode !== 200) { throw new Error(`HTTP ${raw.httpCode}`); }
     const obj = JSON.parse(raw.body) as Record<string, Object>;
     if (obj['retcode'] !== 0) {
       throw new Error(`接口返回 ${num(obj['retcode'])}：${text(obj['message']).substring(0, 80)}`);
     }
     const data = obj['data'] as Record<string, Object> | undefined;
-    if (!data || !Array.isArray(data['posts'])) {
-      throw new Error('搜索响应结构不匹配：缺少 data.posts');
-    }
+    if (!data || !Array.isArray(data['posts'])) { throw new Error('搜索响应结构不匹配：缺少 data.posts'); }
+    PostContext.rememberLists(obj);
     const posts: SearchPost[] = [];
     const seen = new Set<string>();
     (data['posts'] as Object[]).forEach((entry: Object) => {
@@ -60,15 +57,12 @@ export class SearchApi {
           excerpt: p ? text(p['content']).replace(/<[^>]*>/g, '').substring(0, 160) : '',
           replies: s ? num(s['reply_num']) : 0, likes: s ? num(s['like_num']) : 0 });
       } catch (e) {
-        // Skip malformed individual entries without losing valid posts.
+        // 跳过单条损坏数据。
       }
     });
     const source = data['posts'] as Object[];
-    if (source.length > 0 && posts.length === 0) {
-      throw new Error('搜索返回非空列表，但帖子字段无法识别');
-    }
+    if (source.length > 0 && posts.length === 0) { throw new Error('搜索返回非空列表，但帖子字段无法识别'); }
     const next = text(data['last_id']);
-    return { posts, cursor: next,
-      end: data['is_last'] === true || source.length === 0 || next === '' || next === cursor };
+    return { posts, cursor: next, end: data['is_last'] === true || source.length === 0 || next === '' || next === cursor };
   }
 }
