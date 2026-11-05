@@ -4,7 +4,7 @@
 // - 横幅图（>2.4）：真实比例全显不横裁！按宽度档位控制高度预算（>8 限高 90、>4 限高 120、>2.4 限高 160），
 //   内容分布在图片两侧的横幅不再被 Cover 居中裁剪
 // - 极小图（<0.7 且真实尺寸小）：表情包/装饰图标，全显 + 限高 120，避免小图被拉成大图
-// 点击时把在位的全局 rect 一并上报，供预览层做一镜到底优化动画。
+// 点击时把在位的全局 rect（vp 单位）+ 圆角一并上报，供预览层做 Cover 矩形适变的飞向动画。
 
 // ArkTS 禁止内联对象字面量作类型声明，具名 interface 是必须的写法
 interface ImageCompleteInfo {
@@ -17,6 +17,7 @@ export interface ThumbRect {
   y: number;
   w: number;
   h: number;
+  r: number;
 }
 
 @Component
@@ -32,15 +33,15 @@ export struct AdaptiveImage {
   private areaH: number = 0;
 
   private recordArea(_oldValue: Area, area: Area): void {
-    const ctx = this.getUIContext();
-    this.areaW = ctx.vp2px(Number(area.width));
-    this.areaH = ctx.vp2px(Number(area.height));
-    this.areaX = ctx.vp2px(Number(area.globalPosition.x));
-    this.areaY = ctx.vp2px(Number(area.globalPosition.y));
+    // 布局动画中 x/y/w/h/radius 统一走 vp，与预览层坐标系对齐
+    this.areaW = Number(area.width);
+    this.areaH = Number(area.height);
+    this.areaX = Number(area.globalPosition.x);
+    this.areaY = Number(area.globalPosition.y);
   }
 
   private emitTap(): void {
-    this.onTap({ x: this.areaX, y: this.areaY, w: this.areaW, h: this.areaH });
+    this.onTap({ x: this.areaX, y: this.areaY, w: this.areaW, h: this.areaH, r: this.radius });
   }
 
   build() {

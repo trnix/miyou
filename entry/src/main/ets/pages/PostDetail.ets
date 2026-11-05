@@ -36,18 +36,25 @@ struct PostDetailPage {
   @State errorText: string = '';
   @State previewUrl: string = '';
   @State showPreview: boolean = false;
-  // 图片预览：双指缩放为 pinch 历史倍数，travel* 是预览从缩略图位置一镜到底的动画状态
   @State previewScale: number = 1;
   private previewBaseScale: number = 1;
-  @State travelScale: number = 1;
-  @State travelOffsetX: number = 0;
-  @State travelOffsetY: number = 0;
-  @State scrimAlpha: number = 1;
-  private thumbScale0: number = 1;
-  private thumbOffsetX0: number = 0;
-  private thumbOffsetY0: number = 0;
+  // 预览一镜到底V3：纯布局动画（x/y/w/h/radius 连续变形），不设变换缩放
+  @State boxX: number = 0;
+  @State boxY: number = 0;
+  @State boxW: number = 0;
+  @State boxH: number = 0;
+  @State boxRadius: number = 0;
+  @State scrimAlpha: number = 0;
+  @State coverAlpha: number = 1;
+  @State containAlpha: number = 0;
+  private lastThumbX: number = 0;
+  private lastThumbY: number = 0;
+  private lastThumbW: number = 0;
+  private lastThumbH: number = 0;
+  private lastThumbR: number = 0;
   private winW: number = 0;
   private winH: number = 0;
+  private previewSeq: number = 0;
   @State replies: ReplyItem[] = [];
   @State replyLoading: boolean = false;
   @State replyError: string = '';
@@ -61,55 +68,81 @@ struct PostDetailPage {
     return this.getUIContext().px2vp(px);
   }
 
-  // 打开预览：层立即挂载但图片还在缩略图位置 / 黑底透明，下一帧再一镜到位到全屏
   private openPreview(url: string, rect: ThumbRect): void {
-    let s0 = 1;
-    let ox = 0;
-    let oy = 0;
-    if (this.winW > 0 && this.winH > 0 && rect.w > 0) {
-      s0 = Math.min(rect.w / this.winW, 1);
-      ox = (rect.x + rect.w / 2) - this.winW / 2;
-      oy = (rect.y + rect.h / 2) - this.winH / 2;
-    }
-    this.thumbScale0 = s0 <= 0 ? 1 : s0;
-    this.thumbOffsetX0 = ox;
-    this.thumbOffsetY0 = oy;
+    const seq = ++this.previewSeq;
+    this.previewUrl = url;
     this.previewScale = 1;
     this.previewBaseScale = 1;
-    this.travelScale = this.thumbScale0;
-    this.travelOffsetX = ox;
-    this.travelOffsetY = oy;
+    this.lastThumbX = rect.x;
+    this.lastThumbY = rect.y;
+    this.lastThumbW = rect.w;
+    this.lastThumbH = rect.h;
+    this.lastThumbR = rect.r;
+    this.boxX = rect.x;
+    this.boxY = rect.y;
+    this.boxW = rect.w;
+    this.boxH = rect.h;
+    this.boxRadius = rect.r;
     this.scrimAlpha = 0;
-    this.previewUrl = url;
+    this.coverAlpha = 1;
+    this.containAlpha = 0;
     this.showPreview = true;
     setTimeout(() => {
-      animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-        this.travelScale = 1;
-        this.travelOffsetX = 0;
-        this.travelOffsetY = 0;
+      if (seq !== this.previewSeq) {
+        return;
+      }
+      animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+        this.boxX = 0;
+        this.boxY = 0;
+        this.boxW = this.winW;
+        this.boxH = this.winH;
+        this.boxRadius = 0;
         this.scrimAlpha = 1;
       });
     }, 30);
+    setTimeout(() => {
+      if (seq !== this.previewSeq || !this.showPreview) {
+        return;
+      }
+      animateTo({ duration: 90, curve: Curve.EaseOut }, () => {
+        this.coverAlpha = 0;
+        this.containAlpha = 1;
+      });
+    }, 250);
   }
 
-  // 关闭预览：反向复用一个飞行路径（缩略图位置 + 黑底渐隐），再回到帖子
   private closePreview(): void {
-    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-      this.travelScale = this.thumbScale0;
-      this.travelOffsetX = this.thumbOffsetX0;
-      this.travelOffsetY = this.thumbOffsetY0;
-      this.scrimAlpha = 0;
-    });
+    const seq = ++this.previewSeq;
+    if (this.containAlpha > 0) {
+      animateTo({ duration: 90, curve: Curve.EaseOut }, () => {
+        this.containAlpha = 0;
+        this.coverAlpha = 1;
+      });
+    }
     setTimeout(() => {
+      if (seq !== this.previewSeq) {
+        return;
+      }
+      animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+        this.boxX = this.lastThumbX;
+        this.boxY = this.lastThumbY;
+        this.boxW = this.lastThumbW;
+        this.boxH = this.lastThumbH;
+        this.boxRadius = this.lastThumbR;
+        this.scrimAlpha = 0;
+        this.coverAlpha = 1;
+        this.containAlpha = 0;
+      });
+    }, 90);
+    setTimeout(() => {
+      if (seq !== this.previewSeq) {
+        return;
+      }
       this.showPreview = false;
       this.previewUrl = '';
-      this.travelScale = 1;
-      this.travelOffsetX = 0;
-      this.travelOffsetY = 0;
-      this.scrimAlpha = 1;
       this.previewScale = 1;
       this.previewBaseScale = 1;
-    }, 210);
+    }, 320);
   }
 
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
@@ -140,11 +173,12 @@ struct PostDetailPage {
       this.errorText = '缺少帖子 ID';
       return;
     }
-    // 预览一镜到底动画需要屏幕尺寸（px）参与计算缩略图起止位置
+    // 预览布局动画需要屏幕尺寸（转 vp）参与目的矩形计算
     window.getLastWindow(getContext(this)).then((win: window.Window) => {
       const props = win.getWindowProperties();
-      this.winW = props.windowRect.width;
-      this.winH = props.windowRect.height;
+      const ctx = this.getUIContext();
+      this.winW = ctx.px2vp(props.windowRect.width);
+      this.winH = ctx.px2vp(props.windowRect.height);
     }).catch(() => {
       this.winW = 0;
       this.winH = 0;
@@ -475,11 +509,42 @@ struct PostDetailPage {
         .height('100%')
         .backgroundColor('#000000')
         .opacity(this.scrimAlpha)
+        .onClick(() => this.closePreview())
+      Image(this.previewUrl)
+        .position({ x: this.boxX, y: this.boxY })
+        .width(this.boxW)
+        .height(this.boxH)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(this.boxRadius)
+        .clip(true)
+        .opacity(this.coverAlpha)
       Image(this.previewUrl)
         .width('100%')
+        .height('100%')
         .objectFit(ImageFit.Contain)
-        .scale({ x: this.travelScale * this.previewScale, y: this.travelScale * this.previewScale, z: 1 })
-        .translate({ x: this.travelOffsetX, y: this.travelOffsetY })
+        .opacity(this.containAlpha)
+        .scale({ x: this.previewScale, y: this.previewScale, z: 1 })
+        .gesture(
+          PinchGesture({ fingers: 2 })
+            .onActionUpdate((event?: GestureEvent) => {
+              if (event !== undefined) {
+                const s = this.previewBaseScale * event.scale;
+                this.previewScale = Math.min(6, Math.max(1, s));
+              }
+            })
+            .onActionEnd(() => {
+              this.previewBaseScale = this.previewScale;
+            })
+        )
+        .gesture(
+          TapGesture({ count: 2 })
+            .onAction(() => {
+              if (this.previewScale > 1.01) {
+                this.previewScale = 1;
+                this.previewBaseScale = 1;
+              }
+            })
+        )
       Text('双指捏合缩放 · 双击还原 · 点击空白关闭')
         .fontSize(11)
         .fontColor('#99FFFFFF')
@@ -491,29 +556,6 @@ struct PostDetailPage {
     }
     .width('100%')
     .height('100%')
-    .onClick(() => this.closePreview())
-    .gesture(
-      PinchGesture({ fingers: 2 })
-        .onActionUpdate((event?: GestureEvent) => {
-          if (event !== undefined) {
-            const s = this.previewBaseScale * event.scale;
-            // 缩小下限 1.0：最多回到原尺寸，不允许缩得比原图小
-            this.previewScale = Math.min(6, Math.max(1, s));
-          }
-        })
-        .onActionEnd(() => {
-          this.previewBaseScale = this.previewScale;
-        })
-    )
-    .gesture(
-      TapGesture({ count: 2 })
-        .onAction(() => {
-          if (this.previewScale > 1.01) {
-            this.previewScale = 1;
-            this.previewBaseScale = 1;
-          }
-        })
-    )
   }
 
   build() {
@@ -681,7 +723,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（一镜到底准入退出 + 双指缩放 + 双击还原 + 侧滑只关预览）
+      // 图片全屏预览（Cover 矩形适变一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }
