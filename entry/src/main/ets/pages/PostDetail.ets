@@ -52,7 +52,7 @@ struct PostDetailPage {
   @State showPreview: boolean = false;
   @State previewScale: number = 1;
   private previewBaseScale: number = 1;
-  // 预览一镜到底 V5 单图：飞行与手势同一 Image 节点（无任何交接窗口），终点为真实比例适应矩形
+  // 预览一镜到底 V5.1 单图：飞行与手势同一 Image 节点（无任何交接窗口），终点为真实比例适应矩形
   @State boxX: number = 0;
   @State boxY: number = 0;
   @State boxW: number = 0;
@@ -124,12 +124,11 @@ struct PostDetailPage {
     this.scrimAlpha = 0;
     this.flyingAlpha = 0;
     this.showPreview = true;
-    // 飞行图解码完成时显影（底下就是同位真缩略图，此期间预览层透明 = 像素一致）
+    // 500ms 兜底：加载异常也得亮出占位底，保证交互可退出
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
       }
-      // 500ms 兜底：加载异常也得亮出占位底，保证交互可退出
       if (this.flyingAlpha === 0) {
         this.flyingAlpha = 1;
       }
@@ -174,15 +173,8 @@ struct PostDetailPage {
         this.scrimAlpha = 0;
       });
     }, flyDelay);
-    // 飞行结尾淡出 40ms 后与真缩略图融合，再卸载
-    setTimeout(() => {
-      if (seq !== this.previewSeq) {
-        return;
-      }
-      animateTo({ duration: 40, curve: Curve.EaseOut }, () => {
-        this.flyingAlpha = 0;
-      });
-    }, flyDelay + 190);
+    // 飞行落位后直接卸载：终点帧上层图与真缩略图同图源/同 rect/同圆角，像素一致，卸载不可见；
+    // 不做收尾淡出——淡出与飞行尾巴重叠会透出底下的真缩略图，形成双影闪白
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
@@ -191,6 +183,7 @@ struct PostDetailPage {
       this.previewUrl = '';
       this.previewScale = 1;
       this.previewBaseScale = 1;
+      this.flyingAlpha = 0;
     }, flyDelay + 250);
   }
 
@@ -600,14 +593,6 @@ struct PostDetailPage {
               }
             })
         )
-      Text('双指捏合缩放 · 双击还原 · 点击空白关闭')
-        .fontSize(11)
-        .fontColor('#99FFFFFF')
-        .opacity(this.scrimAlpha)
-        .position({ x: 0, y: 40 + this.vp(this.safeTopPx) })
-        .width('100%')
-        .textAlign(TextAlign.Center)
-        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .height('100%')
@@ -778,7 +763,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览 V5：单节点飞行 + 同一节点捏合缩放 + 解码门控显影 + 关闭先回缩放再飞回
+      // 图片全屏预览 V5.1：单节点飞行 + 同一节点捏合缩放 + 解码门控显影 + 关闭先回缩放再飞回，落位原子卸载
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }
