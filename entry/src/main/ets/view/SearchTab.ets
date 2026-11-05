@@ -103,13 +103,25 @@ export struct SearchTab {
           .backgroundColor('#1570EF').fontColor('#FFFFFF')
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'search' } }))
       }.width('100%')
-      Row({ space: 16 }) {
-        Blank()
-        Text('最热').fontSize(13).fontColor(this.order === 1 ? '#1570EF' : '#667085')
+      // 最热 / 最新：居中胶囊，更大字号与点击区，两枚拉开间距
+      Row({ space: 28 }) {
+        Text('最热')
+          .fontSize(14)
+          .fontColor(this.order === 1 ? '#FFFFFF' : '#667085')
+          .fontWeight(this.order === 1 ? FontWeight.Medium : FontWeight.Normal)
+          .padding({ left: 22, right: 22, top: 8, bottom: 8 })
+          .backgroundColor(this.order === 1 ? '#1570EF' : '#F2F4F7')
+          .borderRadius(19)
           .onClick(() => { if (this.order !== 1) { this.order = 1; this.run(false); } })
-        Text('最新').fontSize(13).fontColor(this.order === 2 ? '#1570EF' : '#667085')
+        Text('最新')
+          .fontSize(14)
+          .fontColor(this.order === 2 ? '#FFFFFF' : '#667085')
+          .fontWeight(this.order === 2 ? FontWeight.Medium : FontWeight.Normal)
+          .padding({ left: 22, right: 22, top: 8, bottom: 8 })
+          .backgroundColor(this.order === 2 ? '#1570EF' : '#F2F4F7')
+          .borderRadius(19)
           .onClick(() => { if (this.order !== 2) { this.order = 2; this.run(false); } })
-      }.width('100%')
+      }.width('100%').justifyContent(FlexAlign.Center)
       List({ space: 10 }) {
         ForEach(this.posts, (p: SearchPost) => {
           ListItem() {
