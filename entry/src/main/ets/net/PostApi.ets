@@ -1,6 +1,13 @@
 import { MysHttp } from './MysHttp';
 import { Session } from '../auth/Session';
 
+// 诊断用的一次性请求回执（具名接口，禁内联对象字面量类型）
+export interface PostProbe {
+  url: string;
+  httpCode: number;
+  bodyExcerpt: string;
+}
+
 // 帖子相关接口。请求头沿用 webHome 已验证组合；登录后附带会话 Cookie。
 export class PostApi {
   private static headers(): Record<string, string> {
@@ -16,6 +23,19 @@ export class PostApi {
       headers['Cookie'] = cookie;
     }
     return headers;
+  }
+
+  // 诊断探针：不抛异常（HTTP 状态码原样带回），body 截断到 1500 字防长文撑爆面板。
+  // 仅用于 PostDetail 错误页的变体对照，不带任何写行为。
+  static async probeQuery(query: string): Promise<PostProbe> {
+    const url = 'https://bbs-api.miyoushe.com/post/wapi/getPostFull?' + query;
+    try {
+      const raw = await MysHttp.request(url, PostApi.headers());
+      const body = raw.body.length > 1500 ? raw.body.substring(0, 1500) : raw.body;
+      return { url, httpCode: raw.httpCode, bodyExcerpt: body };
+    } catch (e) {
+      return { url, httpCode: 0, bodyExcerpt: '(请求异常：网络不可达或被拦截)' };
+    }
   }
 
   // read=1：对齐上游实现（TeyvatGuide getPostFull 参数 { post_id, read: 1 }）；

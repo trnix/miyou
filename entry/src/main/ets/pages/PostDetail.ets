@@ -1,5 +1,6 @@
 import { router, window } from '@kit.ArkUI';
-import { PostApi } from '../net/PostApi';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { PostApi, PostProbe } from '../net/PostApi';
 import { PostContentModels as PostModels, RichPostDetail as PostDetail, ContentBlock as PostBlock } from '../model/PostContentModels';
 import { ReplyModels, ReplyItem } from '../model/ReplyModels';
 import { GlassTheme } from '../view/GlassTheme';
@@ -58,6 +59,8 @@ struct PostDetailPage {
   @State replyIsLast: boolean = true;
   @State replyLoaded: boolean = false;
   @State floorStates: Map<string, SubFloorState> = new Map<string, SubFloorState>();
+  @State debugText: string = '';
+  @State debugLoading: boolean = false;
   private postId: string = '';
 
   private vp(px: number): number { return this.getUIContext().px2vp(px); }
@@ -65,6 +68,40 @@ struct PostDetailPage {
     if (url === '') { return; }
     this.actionImageUrl = url;
     this.imageMenu.open();
+  }
+
+  // 三组变体请求：当前 read=1、无 read（网页端默认）、read=2（若服务端把 read 当正文版本号用就定案）
+  private async runDiag(): Promise<void> {
+    if (this.debugLoading) { return; }
+    this.debugLoading = true;
+    this.debugText = '';
+    const lines: string[] = [];
+    lines.push(`postId: ${this.postId}`);
+    const variants: string[] = [
+      `post_id=${this.postId}&read=1`,
+      `post_id=${this.postId}`,
+      `post_id=${this.postId}&read=2`
+    ];
+    for (let i = 0; i < variants.length; i++) {
+      const q = variants[i];
+      const probe: PostProbe = await PostApi.probeQuery(q);
+      lines.push(`—— 变体 ${i + 1}: ${q}`);
+      lines.push(`HTTP ${probe.httpCode}`);
+      lines.push(probe.bodyExcerpt);
+      lines.push('');
+    }
+    this.debugText = lines.join('\n');
+    this.debugLoading = false;
+  }
+
+  private copyDebug(): void {
+    if (this.debugText === '') { return; }
+    const data = pasteboard.CreatePlainTextData(this.debugText);
+    pasteboard.getSystemPasteboard().setData(data).then(() => {
+      this.getUIContext().getPromptAction().showToast({ message: '诊断信息已复制，请粘贴发给开发者' });
+    }).catch(() => {
+      this.getUIContext().getPromptAction().showToast({ message: '复制失败，请手动长按选择复制' });
+    });
   }
 
   private fitRectFor(imgAspect: number): FitRect {
@@ -148,7 +185,7 @@ struct PostDetailPage {
   }
 
   private async load(): Promise<void> {
-    this.loading = true; this.errorText = '';
+    this.loading = true; this.errorText = ''; this.debugText = '';
     try {
       const raw = await PostApi.fetchPostFull(this.postId);
       const d = PostModels.parseDetail(raw, this.postId);
@@ -343,10 +380,37 @@ struct PostDetailPage {
         if (this.loading) {
           Column() { Text('加载中…').fontSize(14).fontColor('#98A2B3') }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
         } else if (this.errorText !== '') {
-          Column({ space: 12 }) {
-            Text(this.errorText).fontSize(14).fontColor('#667085')
-            Button('重试').onClick(() => this.load())
-          }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
+          Scroll() {
+            Column({ space: 14 }) {
+              Text(this.errorText).fontSize(14).fontColor('#667085').width('100%')
+              Button('重试').onClick(() => this.load())
+              // 请求诊断台：三组变体对照一次跑完，结果可复制发给开发者
+              Button(this.debugLoading ? '请求中…' : '请求诊断（定位新版格式）')
+                .fontSize(13)
+                .enabled(!this.debugLoading)
+                .onClick(() => this.runDiag())
+              if (this.debugText !== '') {
+                Column({ space: 8 }) {
+                  Text(this.debugText)
+                    .fontSize(11)
+                    .fontColor('#475467')
+                    .width('100%')
+                    .copyOption(CopyOptions.LocalDevice)
+                    .textSelectable(TextSelectableMode.SELECTABLE_UNFOCUSABLE)
+                  Button('复制诊断信息').fontSize(13).onClick(() => this.copyDebug())
+                }
+                .width('100%')
+                .padding(12)
+                .backgroundColor('#F2F4F7')
+                .borderRadius(10)
+              }
+            }
+            .width('100%')
+            .padding({ left: 20, right: 20, top: 24, bottom: 24 })
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
         } else if (this.detail !== null) {
           Scroll() {
             Column({ space: 14 }) {
