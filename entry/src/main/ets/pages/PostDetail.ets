@@ -55,8 +55,8 @@ struct PostDetailPage {
     this.previewUrl = url;
     this.previewScale = 1;
     this.previewBaseScale = 1;
-    // 预览进场附带淡入+微缩放（见 PreviewLayer 的 transition 声明）
-    animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+    // 预览进场：不透明缩放弹出（scale-only transition，避免半透明遮罩透出下层内容）
+    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
       this.showPreview = true;
     });
   }
@@ -439,17 +439,18 @@ struct PostDetailPage {
     }
     .width('100%')
     .height('100%')
+    // 纯缩放弹入弹出，全程不透明：避免 Outline 型半透明遮罩在动画途中透出下层内容（幽灵感）
     .transition(
-      TransitionEffect.OPACITY
-        .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
-        .animation({ duration: 220, curve: Curve.EaseOut })
+      TransitionEffect.scale({ x: 0.85, y: 0.85 })
+        .animation({ duration: 200, curve: Curve.EaseOut })
     )
     .gesture(
       PinchGesture({ fingers: 2 })
         .onActionUpdate((event?: GestureEvent) => {
           if (event !== undefined) {
             const s = this.previewBaseScale * event.scale;
-            this.previewScale = Math.min(6, Math.max(0.5, s));
+            // 缩小下限 1.0：最多回到原尺寸，不允许缩得比原图小
+            this.previewScale = Math.min(6, Math.max(1, s));
           }
         })
         .onActionEnd(() => {
@@ -459,7 +460,6 @@ struct PostDetailPage {
     .gesture(
       TapGesture({ count: 2 })
         .onAction(() => {
-          // 只要在放大状态双击就还原原尺寸；未放大时双击不响应，让点击空白关闭不受影响
           if (this.previewScale > 1.01) {
             this.previewScale = 1;
             this.previewBaseScale = 1;
@@ -633,7 +633,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原 + 进出场动画）
+      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原 + 不透明缩放进出场）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }

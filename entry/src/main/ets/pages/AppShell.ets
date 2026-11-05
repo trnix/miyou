@@ -9,6 +9,8 @@ struct AppShell {
   @StorageLink('glassLevel') glassLevel: number = 2;
   @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
+  // currentTab 只做顶栏标题与底栏高亮显示，不绑定 Tabs 的 index 参数：
+  // 点击底栏时立刻写它（高光瞬移），页面滑动动画由 TabsController 独立驱动，两者互不拖累
   @State currentTab: number = 0;
   private tabTitles: string[] = ['首页', '社区', '我的'];
   private readonly topBar: number = 56;
@@ -24,7 +26,8 @@ struct AppShell {
 
       // 系统 Tabs：barHeight(0) 隐藏自带页签条，保留自定义悬浮底栏；
       // TabContent 自带懒加载 + 常驻保活 + 边缘横滑手势。
-      Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
+      // 不传 index 绑定，页面切换完全由控制器驱动（避免属性绑定被状态写入瞬跳吞动画）。
+      Tabs({ barPosition: BarPosition.Start, controller: this.tabsController }) {
         TabContent() {
           HomeTab()
         }
@@ -75,8 +78,9 @@ struct AppShell {
           }.layoutWeight(1).padding({ top: 14, bottom: 14 })
             .backgroundColor(this.currentTab === idx ? '#2B1570EF' : '#00000000').borderRadius(24)
             .onClick(() => {
-              // 只走控制器驱动切换：直接写 currentTab 会让绑定的 index 属性瞬跳，吞掉滑动动画；
-              // changeIndex 动画结束后由 onChange 回填 currentTab，标题/高亮同步。
+              // 高光立即到位（纯显示状态，不绑定 index 不会瞬跳页面）
+              this.currentTab = idx;
+              // 页面滑动动画由控制器独立播放
               this.tabsController.changeIndex(idx);
             })
         })

@@ -1,8 +1,9 @@
 // 自适应比例图片：先按 16:9 预估比例占位（布局从首帧起稳定），
 // onComplete 拿到真实宽高后按真实比例显示，不固定大小：
-// - 常规图（0.7~2.4）：完整按真实比例显示（适用多图、长截图，长图到 0.7 下限开始 Cover）
-// - 极宽 banner（>2.4）：装饰条/功能入口图，自动控制高度，避免一张细长图占据整个屏幕
-// - 极小图（<0.7 且真实尺寸小）：表情包/装饰图标，限制展示高度，避免小图被拉成大图
+// - 常规图（0.7~2.4）：完整按真实比例显示（长图到 0.7 下限开始 Cover）
+// - 横幅图（>2.4）：真实比例全显不横裁！按宽度档位控制高度预算（>8 限高 90、>4 限高 120、>2.4 限高 160），
+//   内容分布在图片两侧的横幅不再被 Cover 居中裁剪
+// - 极小图（<0.7 且真实尺寸小）：表情包/装饰图标，全显 + 限高 120，避免小图被拉成大图
 // 点按仍可全屏看原图。
 
 // ArkTS 禁止内联对象字面量作类型声明，具名 interface 是必须的写法
@@ -17,7 +18,7 @@ export struct AdaptiveImage {
   radius: number = 10;
   onTap: () => void = () => {};
   @State ratio: number = 1.78;
-  @State maxHeight: number = 0; // 0 = 不限高
+  @State maxHeight: number = 0; // 0 = 不限高，走 Cover；>0 走 Contain 全显 + 限高
 
   build() {
     if (this.maxHeight > 0) {
@@ -58,19 +59,23 @@ export struct AdaptiveImage {
     }
     const r = event.width / event.height;
     if (r > 8) {
-      // 超细 banner/分隔条：原比例显示但限高，不让它身材主导屏幕高度
+      // 超细 banner/分隔条：真实比例全显，限高徽标化，不主导屏幕高度
       this.ratio = r;
       this.maxHeight = 90;
+    } else if (r > 4) {
+      // 宽横幅：真实比例全显不横裁，限高 120
+      this.ratio = r;
+      this.maxHeight = 120;
     } else if (r > 2.4) {
-      // 横幅图：压缩一半比例后按 Cover 显示，控制高度方向占比
-      this.ratio = r / 2;
-      this.maxHeight = 0;
+      // 一般横幅：真实比例全显不横裁，限高 160
+      this.ratio = r;
+      this.maxHeight = 160;
     } else if (r < 0.7 && event.height <= 480) {
       // 表情包/装饰小图：全显 + 限高，避免被放大成大图
       this.ratio = Math.max(0.3, r);
       this.maxHeight = 120;
     } else {
-      // 常规 + 长截图：完整按真实比例，长图呢 Cover 到 0.7 下限
+      // 常规 + 长截图：完整按真实比例，长图 Cover 到 0.7 下限
       this.ratio = Math.min(2.4, Math.max(0.7, r));
       this.maxHeight = 0;
     }
