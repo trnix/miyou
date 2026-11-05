@@ -169,6 +169,15 @@ struct PostDetailPage {
         this.containAlpha = 0;
       });
     }, 70);
+    // 卸载前的淡出：预览 Cover 与底下的真缩略图同区域像素融合，消除硬切闪烁
+    setTimeout(() => {
+      if (seq !== this.previewSeq) {
+        return;
+      }
+      animateTo({ duration: 40, curve: Curve.EaseOut }, () => {
+        this.coverAlpha = 0;
+      });
+    }, 260);
     setTimeout(() => {
       if (seq !== this.previewSeq) {
         return;
@@ -177,7 +186,7 @@ struct PostDetailPage {
       this.previewUrl = '';
       this.previewScale = 1;
       this.previewBaseScale = 1;
-    }, 300);
+    }, 320);
   }
 
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
@@ -552,11 +561,13 @@ struct PostDetailPage {
         .objectFit(ImageFit.Cover)
         .borderRadius(this.boxRadius)
         .clip(true)
+        .backgroundColor('#F2F4F7')
         .opacity(this.coverAlpha)
       Image(this.previewUrl)
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Contain)
+        .backgroundColor('#000000')
         .opacity(this.containAlpha)
         .scale({ x: this.previewScale, y: this.previewScale, z: 1 })
         .gesture(
@@ -758,7 +769,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（适应矩形一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览）
+      // 图片全屏预览（适应矩形一镜到底进出 + 双指缩放 + 双击还原 + 侧滑只关预览 + 双向防闪）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }
