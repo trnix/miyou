@@ -1,9 +1,9 @@
-import { router } from '@kit.ArkUI';
+import { router, window } from '@kit.ArkUI';
 import { PostApi } from '../net/PostApi';
 import { PostModels, PostDetail, PostBlock } from '../model/PostModels';
 import { ReplyModels, ReplyItem } from '../model/ReplyModels';
 import { GlassTheme } from '../view/GlassTheme';
-import { AdaptiveImage } from '../view/AdaptiveImage';
+import { AdaptiveImage, ThumbRect } from '../view/AdaptiveImage';
 import { formatCount } from '../model/FeedModels';
 
 interface RouteParams {
@@ -36,8 +36,18 @@ struct PostDetailPage {
   @State errorText: string = '';
   @State previewUrl: string = '';
   @State showPreview: boolean = false;
+  // 图片预览：双指缩放为 pinch 历史倍数，travel* 是预览从缩略图位置一镜到底的动画状态
   @State previewScale: number = 1;
   private previewBaseScale: number = 1;
+  @State travelScale: number = 1;
+  @State travelOffsetX: number = 0;
+  @State travelOffsetY: number = 0;
+  @State scrimAlpha: number = 1;
+  private thumbScale0: number = 1;
+  private thumbOffsetX0: number = 0;
+  private thumbOffsetY0: number = 0;
+  private winW: number = 0;
+  private winH: number = 0;
   @State replies: ReplyItem[] = [];
   @State replyLoading: boolean = false;
   @State replyError: string = '';
@@ -51,24 +61,55 @@ struct PostDetailPage {
     return this.getUIContext().px2vp(px);
   }
 
-  private openPreview(url: string): void {
-    this.previewUrl = url;
+  // 打开预览：层立即挂载但图片还在缩略图位置 / 黑底透明，下一帧再一镜到位到全屏
+  private openPreview(url: string, rect: ThumbRect): void {
+    let s0 = 1;
+    let ox = 0;
+    let oy = 0;
+    if (this.winW > 0 && this.winH > 0 && rect.w > 0) {
+      s0 = Math.min(rect.w / this.winW, 1);
+      ox = (rect.x + rect.w / 2) - this.winW / 2;
+      oy = (rect.y + rect.h / 2) - this.winH / 2;
+    }
+    this.thumbScale0 = s0 <= 0 ? 1 : s0;
+    this.thumbOffsetX0 = ox;
+    this.thumbOffsetY0 = oy;
     this.previewScale = 1;
     this.previewBaseScale = 1;
-    // 预览进场：不透明缩放弹出（scale-only transition，避免半透明遮罩透出下层内容）
-    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-      this.showPreview = true;
-    });
+    this.travelScale = this.thumbScale0;
+    this.travelOffsetX = ox;
+    this.travelOffsetY = oy;
+    this.scrimAlpha = 0;
+    this.previewUrl = url;
+    this.showPreview = true;
+    setTimeout(() => {
+      animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+        this.travelScale = 1;
+        this.travelOffsetX = 0;
+        this.travelOffsetY = 0;
+        this.scrimAlpha = 1;
+      });
+    }, 30);
   }
 
+  // 关闭预览：反向复用一个飞行路径（缩略图位置 + 黑底渐隐），再回到帖子
   private closePreview(): void {
-    // 预览关闭与 onBackPress 共用同一条 animateTo 退出动画（见 AGENTS.md 动画规范）
     animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
-      this.showPreview = false;
+      this.travelScale = this.thumbScale0;
+      this.travelOffsetX = this.thumbOffsetX0;
+      this.travelOffsetY = this.thumbOffsetY0;
+      this.scrimAlpha = 0;
     });
-    this.previewUrl = '';
-    this.previewScale = 1;
-    this.previewBaseScale = 1;
+    setTimeout(() => {
+      this.showPreview = false;
+      this.previewUrl = '';
+      this.travelScale = 1;
+      this.travelOffsetX = 0;
+      this.travelOffsetY = 0;
+      this.scrimAlpha = 1;
+      this.previewScale = 1;
+      this.previewBaseScale = 1;
+    }, 210);
   }
 
   // 预览打开时拦截系统返回：侧滑/返回键只关闭预览层，不再直接退出帖子页
@@ -99,6 +140,15 @@ struct PostDetailPage {
       this.errorText = '缺少帖子 ID';
       return;
     }
+    // 预览一镜到底动画需要屏幕尺寸（px）参与计算缩略图起止位置
+    window.getLastWindow(getContext(this)).then((win: window.Window) => {
+      const props = win.getWindowProperties();
+      this.winW = props.windowRect.width;
+      this.winH = props.windowRect.height;
+    }).catch(() => {
+      this.winW = 0;
+      this.winH = 0;
+    });
     this.load();
   }
 
@@ -257,7 +307,7 @@ struct PostDetailPage {
       AdaptiveImage({
         imageUrl: block.imageUrl,
         radius: 10,
-        onTap: () => this.openPreview(block.imageUrl)
+        onTap: (rect: ThumbRect) => this.openPreview(block.imageUrl, rect)
       })
     } else {
       Column() {
@@ -343,7 +393,7 @@ struct PostDetailPage {
             AdaptiveImage({
               imageUrl: imgUrl,
               radius: 8,
-              onTap: () => this.openPreview(imgUrl)
+              onTap: (rect: ThumbRect) => this.openPreview(imgUrl, rect)
             })
           }
           .width('100%')
@@ -424,14 +474,16 @@ struct PostDetailPage {
         .width('100%')
         .height('100%')
         .backgroundColor('#000000')
-        .onClick(() => this.closePreview())
+        .opacity(this.scrimAlpha)
       Image(this.previewUrl)
         .width('100%')
         .objectFit(ImageFit.Contain)
-        .scale({ x: this.previewScale, y: this.previewScale, z: 1 })
+        .scale({ x: this.travelScale * this.previewScale, y: this.travelScale * this.previewScale, z: 1 })
+        .translate({ x: this.travelOffsetX, y: this.travelOffsetY })
       Text('双指捏合缩放 · 双击还原 · 点击空白关闭')
         .fontSize(11)
         .fontColor('#99FFFFFF')
+        .opacity(this.scrimAlpha)
         .position({ x: 0, y: 40 + this.vp(this.safeTopPx) })
         .width('100%')
         .textAlign(TextAlign.Center)
@@ -439,11 +491,7 @@ struct PostDetailPage {
     }
     .width('100%')
     .height('100%')
-    // 纯缩放弹入弹出，全程不透明：避免 Outline 型半透明遮罩在动画途中透出下层内容（幽灵感）
-    .transition(
-      TransitionEffect.scale({ x: 0.85, y: 0.85 })
-        .animation({ duration: 200, curve: Curve.EaseOut })
-    )
+    .onClick(() => this.closePreview())
     .gesture(
       PinchGesture({ fingers: 2 })
         .onActionUpdate((event?: GestureEvent) => {
@@ -633,7 +681,7 @@ struct PostDetailPage {
 
       this.TopBar()
 
-      // 图片全屏预览（含侧滑返回修复 + 双指缩放 + 双击还原 + 不透明缩放进出场）
+      // 图片全屏预览（一镜到底准入退出 + 双指缩放 + 双击还原 + 侧滑只关预览）
       if (this.showPreview && this.previewUrl !== '') {
         this.PreviewLayer()
       }

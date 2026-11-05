@@ -4,7 +4,7 @@
 // - 横幅图（>2.4）：真实比例全显不横裁！按宽度档位控制高度预算（>8 限高 90、>4 限高 120、>2.4 限高 160），
 //   内容分布在图片两侧的横幅不再被 Cover 居中裁剪
 // - 极小图（<0.7 且真实尺寸小）：表情包/装饰图标，全显 + 限高 120，避免小图被拉成大图
-// 点按仍可全屏看原图。
+// 点击时把在位的全局 rect 一并上报，供预览层做一镜到底优化动画。
 
 // ArkTS 禁止内联对象字面量作类型声明，具名 interface 是必须的写法
 interface ImageCompleteInfo {
@@ -12,13 +12,36 @@ interface ImageCompleteInfo {
   height: number;
 }
 
+export interface ThumbRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 @Component
 export struct AdaptiveImage {
   imageUrl: string = '';
   radius: number = 10;
-  onTap: () => void = () => {};
+  onTap: (rect: ThumbRect) => void = () => {};
   @State ratio: number = 1.78;
   @State maxHeight: number = 0; // 0 = 不限高，走 Cover；>0 走 Contain 全显 + 限高
+  private areaX: number = 0;
+  private areaY: number = 0;
+  private areaW: number = 0;
+  private areaH: number = 0;
+
+  private recordArea(_oldValue: Area, area: Area): void {
+    const ctx = this.getUIContext();
+    this.areaW = ctx.vp2px(Number(area.width));
+    this.areaH = ctx.vp2px(Number(area.height));
+    this.areaX = ctx.vp2px(Number(area.globalPosition.x));
+    this.areaY = ctx.vp2px(Number(area.globalPosition.y));
+  }
+
+  private emitTap(): void {
+    this.onTap({ x: this.areaX, y: this.areaY, w: this.areaW, h: this.areaH });
+  }
 
   build() {
     if (this.maxHeight > 0) {
@@ -33,8 +56,11 @@ export struct AdaptiveImage {
         .onComplete((event?: ImageCompleteInfo) => {
           this.adjust(event);
         })
+        .onAreaChange((oldValue: Area, newValue: Area) => {
+          this.recordArea(oldValue, newValue);
+        })
         .onClick(() => {
-          this.onTap();
+          this.emitTap();
         })
     } else {
       Image(this.imageUrl)
@@ -47,8 +73,11 @@ export struct AdaptiveImage {
         .onComplete((event?: ImageCompleteInfo) => {
           this.adjust(event);
         })
+        .onAreaChange((oldValue: Area, newValue: Area) => {
+          this.recordArea(oldValue, newValue);
+        })
         .onClick(() => {
-          this.onTap();
+          this.emitTap();
         })
     }
   }

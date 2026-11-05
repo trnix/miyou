@@ -11,7 +11,7 @@
 - 端点与版本号集中在 `net/Endpoints.ets`；各 Api 类自管请求头，登录后经 `Session.cookie()` 附带 Cookie
 - 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
 - Tab 框架（AppShell）：系统 `Tabs` + 3 个 `TabContent`，`.barHeight(0)` 隐藏系统页签条，自定义悬浮药丸底栏保留；TabContent 天然懒挂载 + 常驻保活；切换动画只由 `TabsController.changeIndex` 驱动；`index` 参数**不绑定 @State**——它退化为纯点击高亮状态，点击时立刻写入（高光瞬移），页面滑动由控制器独立播放；`onChange` 同步横滑结果
-- 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例）；头像与信息流图片定高 + `#F2F4F7` 占位底色
+- 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例；每张缩略图用 onAreaChange 常驻记录全局 rect 并伴点击上报）；头像与信息流图片定高 + `#F2F4F7` 占位底色
 - 全局滚动条隐藏：Scroll/List 统一 `.scrollBar(BarState.Off)`
 - 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
 
@@ -32,14 +32,14 @@
 - 统一曲线：`Curve.EaseOut`，全站任何动画不改曲线
 - 时长三级，按交互量级取用：
   - **180ms 布局微调**：组件自身尺寸/比例变化（AdaptiveImage 图片占位 → 真实比例过渡）
-  - **200~220ms 条件层显隐**：预览、展开面板、弹层这类按需闪现的内容（楼中楼展开面板 200）
+  - **200~220ms 条件层显隐**：预览、展开面板、弹层这类按需闪现的内容（楼中楼展开面板 200；图片预览一镜到底 200）
   - **280ms 页面级切换**：仅系统 Tabs 滑动动画使用；页面路由转场用系统默认，不自定义时长
 - 条件显隐的固定写法：容器挂 `.transition(...)`，状态翻转用 `animateTo({ duration, curve: Curve.EaseOut }, () => { ... })` 包裹；**不进 animateTo 的状态翻转只有进场没有退场动画**
-- 图片预览的进出场是个例外：**只用 scale、不用透明度**（黑遮罩半透明淡出会透出下层内容产生幽灵感），统一为 scale(0.85)→1 的 200ms 不透明弹出/收回
+- **不要对全屏黑遮罩做整层透明度或缩放 transition**（微缩/遮罩参与动画，会出现幽灵感或大黑块变形，会被归为代价大的反面教学）
+- 图片预览的进出是**一镜到底**：黑底经 `scrimAlpha` 独立渐变；图片从天起缩略图 rect（onAreaChange 常驻记录）以 `travelScale + travelOffset` 平移缩放到全屏，关闭同样路径反向飞回原位；`onBackPress` 也必须复用 `closePreview()`，不能另起一条退出路径
 - 手势交互（捏合缩放、拖移、横滑）瞬时跟随手指，**不设动画时长**；手势结束后的收尾才用 animateTo
 - 图片预览双指缩放：`previewBaseScale` 暂存历程结束倍数，`onActionUpdate` 用 `previewBaseScale * event.scale` 得实时倍数；**缩小下限 1.0**，不能缩得比原尺寸小，上限 6；双击放大后还原
 - 系统已有的动画不重复造：router.pushUrl 的页面转场、Tabs 滑动、Toggle/Button 等默认可视反馈，一律保持原样
-- 页面拦截返回：`onBackPress(): boolean` 返回 true 吃掉系统返回（预览打开时侧滑只关预览层不退页）；同一路径必须复用与普通关闭相同的 animateTo 退出动画
 - 新交互默认带动画：写交互组件时先默认给上述级别之一的动画，不加是出于性能或其他原因的具体段落才允许例外
 
 ## 已验证接口表
@@ -74,14 +74,14 @@
 | 我的 | ✅ 登录身份卡（头像/昵称/UID/简介/四项数据，@Watch 随登录态刷新）+ 沉浸光感开关 + 动态版本号 |
 | 登录 | ✅ 官方网页登录 + 扫码登录，Cookie 清洗持久化 |
 | Tab 框架 | ✅ 系统 Tabs 滑动动画 + 横滑手势 + 保活不重载 + 点击高光即时同步 |
-| 图片体验 | ✅ AdaptiveImage 智能比例（横幅不横裁）+ 预览捏合缩放（1~6x）/双击还原 + 不透明缩放弹入弹出 + 侧滑只关预览 |
-| 动画规范 | ✅ 全站统一 Curve.EaseOut 三级时长；预览为 scale-only，楼中楼 transition + animateTo |
+| 图片体验 | ✅ AdaptiveImage 智能比例（横幅不横裁 记录 rect）+ 预览一镜到底进出 + 捏合缩放（1~6x）/双击还原 + 侧滑只关预览 |
+| 动画规范 | ✅ 全站统一 Curve.EaseOut 三级时长；预览为一镜到底 img travel + scrim 渐变，楼中楼 transition + animateTo |
 | 消息 | ❌ 入口已移除（官方接口未接入） |
 | 版区频道页 | ❌ R7 取消（降级后与首页重叠，ForumHome.ets 已删） |
 | 游戏战绩 | ❌ R4 放弃（DS 签名链路复杂度高，相关文件已删） |
 
 ## 当前进度
 
-v0.7.0：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例与预览手势；动画规范统一（预览 scale-only 弹入弹出、楼中楼 transition、底栏高光即时同步）；MineTab 身份卡；死代码清理。
+v0.7.0：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；图片预览走主流一镜到底（黑底渐变 + 缩略图飞入飞出）；动画规范统一；MineTab 身份卡；死代码清理。
 
 原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。
