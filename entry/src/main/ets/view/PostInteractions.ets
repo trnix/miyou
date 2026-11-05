@@ -16,8 +16,8 @@ export async function openPostLink(ctx: common.UIAbilityContext, target: string)
 export struct PostText {
   @Prop text: string = '';
   @Prop runs: TextRun[] = [];
-  @Prop size: number = 15;
-  @Prop line: number = 24;
+  @Prop textSize: number = 15;
+  @Prop textLine: number = 24;
 
   private parts(): TextRun[] { return this.runs.length > 0 ? this.runs : linkRuns(this.text); }
   private open(url: string): void {
@@ -35,7 +35,7 @@ export struct PostText {
             .onClick(() => this.open(part.url))
         } else { Span(part.text) }
       })
-    }.fontSize(this.size).fontColor('#101828').lineHeight(this.line).width('100%')
+    }.fontSize(this.textSize).fontColor('#101828').lineHeight(this.textLine).width('100%')
       .copyOption(CopyOptions.LocalDevice).textSelectable(TextSelectableMode.SELECTABLE_UNFOCUSABLE)
   }
 }

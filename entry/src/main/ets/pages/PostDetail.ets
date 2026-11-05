@@ -269,7 +269,7 @@ struct PostDetailPage {
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         if (item.likeNum > 0) { Text(`赞 ${formatCount(item.likeNum)}`).fontSize(11).fontColor('#98A2B3') }
       }.width('100%')
-      if (item.content !== '') { PostText({ text: item.content, size: 14, line: 21 }) }
+      if (item.content !== '') { PostText({ text: item.content, textSize: 14, textLine: 21 }) }
       if (item.images.length > 0) {
         ForEach(item.images, (url: string) => {
           Column() {

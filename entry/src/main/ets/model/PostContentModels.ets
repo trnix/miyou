@@ -33,9 +33,16 @@ function obj(v: Object | undefined): Record<string, Object> {
   return {};
 }
 function arr(v: Object | undefined): Object[] { return Array.isArray(v) ? v as Object[] : []; }
-function parsed(v: Object | undefined): Object {
-  if (typeof v !== 'string') { return v === undefined || v === null ? {} : v; }
-  try { return JSON.parse(v) as Object; } catch (e) { return {}; }
+function parsed(v: Object | undefined): Record<string, Object> {
+  if (typeof v !== 'string') {
+    return obj(v);
+  }
+  try {
+    const out = JSON.parse(v) as Object;
+    return obj(out);
+  } catch (e) {
+    return {};
+  }
 }
 function block(kind: string, text: string = '', imageUrl: string = '', runs: TextRun[] = [], videoUrl: string = ''): ContentBlock {
   return { kind, text, imageUrl, runs, videoUrl };
@@ -112,7 +119,7 @@ export class PostContentModels {
     let blocks: ContentBlock[] = base.blocks.map((b: PostBlock) => block(b.kind, b.text, b.imageUrl, linkRuns(b.text)));
     try {
       const structured = parsed(post['structured_content']);
-      const ops = Array.isArray(structured) ? structured as Object[] : arr(obj(structured)['ops']);
+      const ops = Array.isArray(structured) ? structured as Object[] : arr(structured['ops']);
       if (ops.length > 0) {
         const out: ContentBlock[] = [];
         const runs: TextRun[] = [];
