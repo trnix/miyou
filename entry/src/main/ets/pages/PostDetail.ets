@@ -96,7 +96,7 @@ struct PostDetailPage {
 
   private copyDebug(): void {
     if (this.debugText === '') { return; }
-    const data = pasteboard.CreatePlainTextData(this.debugText);
+    const data = pasteboard.createPlainTextData(this.debugText);
     pasteboard.getSystemPasteboard().setData(data).then(() => {
       this.getUIContext().getPromptAction().showToast({ message: '诊断信息已复制，请粘贴发给开发者' });
     }).catch(() => {
