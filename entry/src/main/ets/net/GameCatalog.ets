@@ -9,12 +9,13 @@ export interface GameInfo {
 }
 
 // 用户上传的 gids 探测结果：webHome 与首帖详情归属一致；不等于所有接口均已验证。
+// short 是频道栏展示文案：崩坏学园2 用全称，不截短（首页/社区/频道管理共用此字段）。
 export const GAMES: GameInfo[] = [
   { gids: 2, name: '原神', short: '原神', color: '#1570EF' },
   { gids: 8, name: '绝区零', short: '绝区零', color: '#E66900' },
   { gids: 6, name: '崩坏：星穹铁道', short: '星穹铁道', color: '#6B5CE7' },
   { gids: 1, name: '崩坏3', short: '崩坏3', color: '#875BF7' },
-  { gids: 3, name: '崩坏学园2', short: '学园2', color: '#F15A98' },
+  { gids: 3, name: '崩坏学园2', short: '崩坏学园2', color: '#F15A98' },
   { gids: 4, name: '未定事件簿', short: '未定事件簿', color: '#A67C3D' },
   { gids: 5, name: '大别野', short: '大别野', color: '#12B76A' },
   { gids: 9, name: '崩坏：因缘精灵', short: '因缘精灵', color: '#F79009' },

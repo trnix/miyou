@@ -11,6 +11,7 @@
 - 端点与版本号集中在 `net/Endpoints.ets`；各 Api 类自管请求头，登录后经 `Session.cookie()` 附带 Cookie
 - 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
 - Tab 框架（AppShell）：系统 `Tabs` + 3 个 `TabContent`，`.barHeight(0)` 隐藏系统页签条，自定义悬浮药丸底栏保留；TabContent 天然懒挂载 + 常驻保活；切换动画只由 `TabsController.changeIndex` 驱动；`index` 参数**不绑定 @State**——它退化为纯点击高亮状态，点击时立刻写入（高光瞬移），页面滑动由控制器独立播放；`onChange` 同步横滑结果
+- 频道栏样式唯一基准（首页/社区一致）：文字 + 底部 18×3 指示条，选中用频道专属色（GameInfo.color）、fontSize 17 Bold，未选 15 Normal #667085；项 padding 左右 10 上 8、flexShrink(0)，栏高 46，横滑 Scroll + 右侧「频道」胶囊（32×64）。文案取 GameCatalog.short，崩坏学园2 显示全称
 - 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例；每张缩略图用 onAreaChange 常驻记录全局 rect + 圆角 + 图片真实宽高伴点击上报）；头像与信息流图片定高 + `#F2F4F7` 占位底色
 - 全局滚动条隐藏：Scroll/List 统一 `.scrollBar(BarState.Off)`
 - 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
@@ -75,7 +76,7 @@
 | 功能 | 状态 |
 |---|---|
 | 首页推荐流 | ✅ 三游戏频道切换 + 下拉刷新 + 上拉分页 |
-| 社区搜索 | ✅ 按游戏 + 最热/最新 + 游标分页 |
+| 社区搜索 | ✅ 按游戏 + 最热/最新 + 游标分页；频道栏与首页同款（文字+指示条、频道专属色） |
 | 帖子详情 | ✅ 标题/话题/结构化正文/图片点击全屏预览并双指缩放；新版格式帖已解锁（网页身份 + DS1，b147 真机验证） |
 | 评论区 | ✅ 热评分页 + 楼中楼可点展开（每楼层独立状态，带动画） |
 | 用户主页 | ✅ 资料卡 + 他人帖子列表（自己帖子受 1001 限制） |
@@ -92,6 +93,6 @@
 
 v0.7.0 收束：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；预览动画五轮迭代定稿 V5.1 单节点适变（打开/关闭闪烁均已实测消除）；动画规范统一；MineTab 身份卡；README/UA/文档同代修正。
 
-v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。
+v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。社区频道栏样式与首页统一（文字+指示条、频道专属色、46 高）；崩坏学园2 频道显示全称（GameCatalog.short 一处改，三处生效）。
 
 原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。

@@ -87,22 +87,27 @@ export struct SearchTab {
           .onChange((v: string) => { this.keyword = v; }).onSubmit(() => this.run(false))
         Button('搜索').onClick(() => this.run(false))
       }.width('100%')
-      Row({ space: 8 }) {
+      // 频道栏与首页同款：文字 + 底部指示条，选中频道专属色，46 高
+      Row({ space: 6 }) {
         Scroll() {
-          Row({ space: 8 }) {
+          Row({ space: 4 }) {
             ForEach(this.channelList(), (g: GameInfo) => {
-              Text(g.short).fontSize(12).maxLines(1).flexShrink(0)
-                .fontColor(this.currentGid === g.gids ? '#1570EF' : '#667085')
-                .padding(8).backgroundColor(this.currentGid === g.gids ? '#E5F6FF' : '#FFFFFF')
-                .borderRadius(10).onClick(() => this.select(g.gids))
+              Column({ space: 4 }) {
+                Text(g.short).fontSize(this.currentGid === g.gids ? 17 : 15)
+                  .fontWeight(this.currentGid === g.gids ? FontWeight.Bold : FontWeight.Normal)
+                  .fontColor(this.currentGid === g.gids ? g.color : '#667085').maxLines(1)
+                Column().width(18).height(3).borderRadius(2)
+                  .backgroundColor(this.currentGid === g.gids ? g.color : '#00000000')
+              }.padding({ left: 10, right: 10, top: 8 }).flexShrink(0)
+                .onClick(() => this.select(g.gids))
             }, (g: GameInfo) => g.gids.toString())
-          }
-        }.layoutWeight(1).height(40).scrollable(ScrollDirection.Horizontal)
+          }.alignItems(VerticalAlign.Top)
+        }.layoutWeight(1).height(46).scrollable(ScrollDirection.Horizontal)
           .scrollBar(BarState.Off).align(Alignment.Start)
         Button('频道', { type: ButtonType.Capsule }).fontSize(13).width(64).height(32)
           .backgroundColor('#1570EF').fontColor('#FFFFFF')
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'search' } }))
-      }.width('100%')
+      }.width('100%').height(46).padding({ left: 4 })
       // 最热 / 最新：居中胶囊，更大字号与点击区，两枚拉开间距
       Row({ space: 28 }) {
         Text('最热')
