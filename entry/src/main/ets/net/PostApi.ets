@@ -63,14 +63,18 @@ export class PostApi {
   static async fetchPostFull(postId: string): Promise<Object> {
     const id = encodeURIComponent(postId);
     PostApi.trace(postId, 'getPostFull 请求中');
-    const raw = await MysHttp.request(`https://bbs-api.miyoushe.com/post/wapi/getPostFull?post_id=${id}&read=1`, PostApi.headers());
-    PostApi.trace(postId, `getPostFull HTTP ${raw.httpCode}`);
+    // json.txt 截图证实的组合：getPostFull?gids=8&post_id=…&read=1
+    // 带真实 game_id（从 PostContext 取，不猜、不使用当前频道）
+    const gid = PostContext.gameOf(postId);
+    const gidPart = gid > 0 ? `&gids=${gid}` : '';
+    const raw = await MysHttp.request(`https://bbs-api.miyoushe.com/post/wapi/getPostFull?post_id=${id}${gidPart}&read=1`, PostApi.headers());
+    PostApi.trace(postId, `getPostFull HTTP ${raw.httpCode}${gid > 0 ? ` (gids=${gid})` : ''}`);
     if (raw.httpCode !== 200) { throw new Error(`HTTP ${raw.httpCode}`); }
     const original = JSON.parse(raw.body) as Record<string, Object>;
     const rc = original['retcode'];
     const value = original['message'];
     const msg = typeof value === 'string' ? value : '';
-    PostApi.trace(postId, `getPostFull HTTP 200, retcode=${typeof rc === 'number' ? rc : '缺失'}`);
+    PostApi.trace(postId, `getPostFull HTTP 200, retcode=${typeof rc === 'number' ? rc : '缺失'}${gid > 0 ? ` (gids=${gid})` : ''}`);
     if (rc === 0) {
       if (!PostContext.matchesDetail(original, postId)) { throw new Error('详情返回的帖子ID不匹配'); }
       PostContext.rememberDetail(original);
@@ -80,7 +84,6 @@ export class PostApi {
     if (rc !== -1 || msg.indexOf('升级') < 0 || (original['data'] !== null && original['data'] !== undefined)) {
       return original;
     }
-    const gid = PostContext.gameOf(postId);
     if (gid <= 0) {
       PostApi.trace(postId, 'getPostFull retcode=-1；没有该帖的真实game_id，未猜测频道或扫描接口');
       return original;
