@@ -1,6 +1,6 @@
 import { router, window } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { PostApi, PostProbe } from '../net/PostApi';
+import { PostApi } from '../net/PostApi';
 import { PostContentModels as PostModels, RichPostDetail as PostDetail, ContentBlock as PostBlock } from '../model/PostContentModels';
 import { ReplyModels, ReplyItem } from '../model/ReplyModels';
 import { GlassTheme } from '../view/GlassTheme';
@@ -70,39 +70,12 @@ struct PostDetailPage {
     this.imageMenu.open();
   }
 
-  // 三组 wapi 变体 + 两组官方 /post/api 变体（与本 App 同一官方客户端身份通道）
+  // 头组变体对照诊断：找出解锁新版帖的最小身份组合
   private async runDiag(): Promise<void> {
     if (this.debugLoading) { return; }
     this.debugLoading = true;
     this.debugText = '';
-    const lines: string[] = [];
-    lines.push(`postId: ${this.postId}`);
-    const variants: string[] = [
-      `post_id=${this.postId}&read=1`,
-      `post_id=${this.postId}`,
-      `post_id=${this.postId}&read=2`
-    ];
-    for (let i = 0; i < variants.length; i++) {
-      const q = variants[i];
-      const probe: PostProbe = await PostApi.probeQuery(q);
-      lines.push(`—— wapi ${i + 1}: ${q}`);
-      lines.push(`HTTP ${probe.httpCode}`);
-      lines.push(probe.bodyExcerpt);
-      lines.push('');
-    }
-    const apiUrls: string[] = [
-      `https://bbs-api.miyoushe.com/post/api/getPostFull?post_id=${this.postId}`,
-      `https://bbs-api.miyoushe.com/post/api/getPostFull?post_id=${this.postId}&read=1`
-    ];
-    for (let j = 0; j < apiUrls.length; j++) {
-      const url = apiUrls[j];
-      const probe: PostProbe = await PostApi.probeUrl(url);
-      lines.push(`—— api ${j + 1}: ${url.substring('https://bbs-api.miyoushe.com/'.length)}`);
-      lines.push(`HTTP ${probe.httpCode}`);
-      lines.push(probe.bodyExcerpt);
-      lines.push('');
-    }
-    this.debugText = lines.join('\n');
+    this.debugText = await PostApi.probeVariants(this.postId);
     this.debugLoading = false;
   }
 
@@ -401,7 +374,7 @@ struct PostDetailPage {
             Column({ space: 14 }) {
               Text(this.errorText).fontSize(14).fontColor('#667085').width('100%')
               Button('重试').onClick(() => this.load())
-              Button(this.debugLoading ? '请求中…' : '请求诊断（api 变体）')
+              Button(this.debugLoading ? '请求中…' : '请求诊断（网页身份变体）')
                 .fontSize(13)
                 .enabled(!this.debugLoading)
                 .onClick(() => this.runDiag())
