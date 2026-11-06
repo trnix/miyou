@@ -4,6 +4,7 @@ import { GameInfo, gameByGids, defaultOrder, cleanOrder } from '../net/GameCatal
 
 @Component
 export struct SearchTab {
+  scroller: Scroller = new Scroller();
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @StorageLink('searchChannelOrder') @Watch('onChannelsChanged') searchOrder: number[] = [];
   @State keyword: string = '';
@@ -127,7 +128,7 @@ export struct SearchTab {
           .borderRadius(19)
           .onClick(() => { if (this.order !== 2) { this.order = 2; this.run(false); } })
       }.width('100%').justifyContent(FlexAlign.Center)
-      List({ space: 10 }) {
+      List({ space: 10, scroller: this.scroller }) {
         ForEach(this.posts, (p: SearchPost) => {
           ListItem() {
             Column({ space: 6 }) {

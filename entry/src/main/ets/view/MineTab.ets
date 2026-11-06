@@ -7,6 +7,7 @@ import { UserModels, UserProfile } from '../model/UserModels';
 
 @Component
 export struct MineTab {
+  scroller: Scroller = new Scroller();
   // Tab 保活后 aboutToAppear 只在首次触发；登录态变化通过 @Watch 重置并重拉资料
   @StorageLink('cookie') @Watch('onSessionChange') cookie: string = '';
   @StorageLink('glassLevel') glassLevel: number = 3;
@@ -56,7 +57,7 @@ export struct MineTab {
   }
 
   build() {
-    Scroll() {
+    Scroll(this.scroller) {
       Column({ space: 14 }) {
         if (this.cookie.length === 0) {
           // 未登录：简洁提示 + 去登录
@@ -173,7 +174,7 @@ export struct MineTab {
               })
           }
           .width('100%')
-          Text('顶栏与底栏的沉浸玻璃拟态效果，开关即时生效')
+          Text('顶栏与底栏的沉浸光感材质效果，开关即时生效')
             .fontSize(12)
             .fontColor('#667085')
         }

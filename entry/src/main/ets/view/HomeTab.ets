@@ -6,9 +6,9 @@ import { GameInfo, gameByGids, defaultOrder, cleanOrder } from '../net/GameCatal
 
 @Component
 export struct HomeTab {
+  scroller: Scroller = new Scroller();
   @StorageLink('homeChannelOrder') @Watch('onChannelsChanged') homeOrder: number[] = [];
   @StorageLink('glassLevel') glassLevel: number = 2;
-  @StorageLink('safeTopPx') safeTopPx: number = 0;
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
   @State currentGid: number = 2;
   @State posts: FeedPost[] = [];
@@ -18,7 +18,6 @@ export struct HomeTab {
   @State noMore: boolean = false;
   @State errorText: string = '';
   @State firstLoaded: boolean = false;
-  private readonly titleBar: number = 56;
   private readonly channelBar: number = 46;
   private readonly bottomPill: number = 64;
   private page: number = 1;
@@ -26,7 +25,7 @@ export struct HomeTab {
   private active: boolean = false;
 
   private vp(px: number): number { return this.getUIContext().px2vp(px); }
-  private topOffset(): number { return this.vp(this.safeTopPx) + this.titleBar + this.channelBar; }
+  private topOffset(): number { return this.channelBar; }
   private bottomOffset(): number { return this.vp(this.safeBottomPx) + this.bottomPill + 8; }
   private channelList(): GameInfo[] {
     const ids = this.homeOrder.length > 0 ? cleanOrder(this.homeOrder) : defaultOrder();
@@ -217,7 +216,7 @@ export struct HomeTab {
           .width('100%').height('100%').justifyContent(FlexAlign.Center)
       } else {
         Refresh({ refreshing: this.refreshing }) {
-          List({ space: 12 }) {
+          List({ space: 12, scroller: this.scroller }) {
             ForEach(this.posts, (post: FeedPost) => {
               ListItem() { this.PostCard(post) }
             }, (post: FeedPost) => post.postId)
@@ -247,7 +246,6 @@ export struct HomeTab {
           .backgroundColor('#1570EF').fontColor('#FFFFFF').margin({ right: 8 })
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'home' } }))
       }.width('100%').height(this.channelBar).padding({ left: 4 })
-        .margin({ top: this.vp(this.safeTopPx) + this.titleBar })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
         .systemMaterial(GlassTheme.material(this.glassLevel))
         .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })

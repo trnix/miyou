@@ -1,15 +1,10 @@
-// 光感玻璃主题：沉浸光感开关状态与官方沉浸光感材质生成。
-// 开关语义（v1.3 起）：0 = 关闭；3 = 开启（THICK 强档）。
-// 历史四档（0/1/2/3）中 1/2 实测视觉差异不可辨，已下线；hydrate 时将旧值 1/2 归一为 3。
-// 权威依据（harmonyos 官方 API 参考 arkts-apis-uimaterial / ts-universal-attributes-image-effect）：
-//   ImmersiveStyle 五档 = ULTRA_THIN / THIN / REGULAR / THICK / ULTRA_THICK；
-//   普通 ArkUI 组件挂 .systemMaterial(new uiMaterial.ImmersiveMaterial(...))；
-//   systemMaterial 不得与 backgroundBlurStyle 叠加（官方约束文档反例）；
-//   systemMaterial 与 backgroundColor/border 同设时「后设置的生效」——因此调用方必须
-//   把 backgroundColor 写在 systemMaterial 之前、border 等装饰写在其后，
-//   否则后设的纯色会覆盖材质的背景效果（顶栏曾因此磨砂消失，已修复）。
-//   materialColor 为纯不透明色时会遮住材质层滤镜——利用它实现「关闭」态。
-//   能力探测沿用官方最佳实践：hdsMaterial.getSystemMaterialTypes() 查询可用材质。
+// 光感玻璃主题：沉浸光感开关状态与材质参数工厂。
+// 开关语义（v1.3 起）：0 = 关闭；3 = 开启（hydrate 时将旧值 1/2 归一为 3）。
+// 两条材质线并存：
+//   HDS 线（AppShell）：titleBar=IMMERSIVE、底栏=ADAPTIVE，等级经 hdsLevel() 给出
+//     （EXQUISITE 优先，设备不支持 IMMERSIVE 材质时按官方建议降级 SMOOTH）；
+//   uiMaterial 线（PostDetail 顶栏、频道栏等普通 ArkUI 组件）：material() 保持原状。
+// 能力检测必须查 IMMERSIVE 成员：getSystemMaterialTypes() 非空仅代表存在任意材质类型。
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { uiMaterial } from '@kit.ArkUI';
@@ -47,7 +42,6 @@ export class GlassTheme {
       const store = preferences.getPreferencesSync(context, { name: STORE });
       let v = store.getSync(KEY_GLASS, 3) as number;
       if (v !== 0 && v !== 3) {
-        // 旧四档的 1/2 归一到「开」（3），与新开关语义对齐。
         v = 3;
         store.putSync(KEY_GLASS, v);
         store.flush();
@@ -62,12 +56,20 @@ export class GlassTheme {
   private static probeSupport(): void {
     try {
       const types = hdsMaterial.getSystemMaterialTypes();
-      GlassTheme.immersiveSupported = types.length > 0;
+      GlassTheme.immersiveSupported = types.indexOf(hdsMaterial.MaterialType.IMMERSIVE) >= 0;
     } catch (e) {
       GlassTheme.immersiveSupported = false;
     }
   }
 
+  // HDS 材质等级：支持 IMMERSIVE → EXQUISITE；否则 → SMOOTH（官方降级路径）。
+  static hdsLevel(): hdsMaterial.MaterialLevel {
+    return GlassTheme.immersiveSupported
+      ? hdsMaterial.MaterialLevel.EXQUISITE
+      : hdsMaterial.MaterialLevel.SMOOTH;
+  }
+
+  // uiMaterial 线：普通 ArkUI 组件（详情页顶栏、频道栏）继续沿用。
   static material(level: number): uiMaterial.Material {
     if (level === 0 || !GlassTheme.immersiveSupported) {
       // 「关闭」：不透明赋色遮住材质层，等同无玻璃效果。
