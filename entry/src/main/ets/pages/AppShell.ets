@@ -54,6 +54,9 @@ const TAB_ITEMS: TabItem[] = [
 @Component
 struct AppShell {
   @StorageLink('glassLevel') glassLevel: number = 3;
+  // 只做标题栏页名显示，不绑定 HdsTabs 的 index（高亮与页面切换由 HDS 自己驱动）
+  @State currentTab: number = 0;
+  private tabTitles: string[] = ['首页', '社区', '我的'];
   private tabsController: HdsTabsController = new HdsTabsController();
   private scHome: Scroller = new Scroller();
   private scSearch: Scroller = new Scroller();
@@ -107,10 +110,13 @@ struct AppShell {
       .vertical(false)
       .barPosition(BarPosition.End)
       .barFloatingStyle(this.floatingStyle())
+      .onChange((index: number) => {
+        this.currentTab = index;
+      })
     }
     .mode(NavigationMode.Stack)
     .titleBar({
-      content: { title: { mainTitle: '米柚' } },
+      content: { title: { mainTitle: this.tabTitles[this.currentTab] } },
       style: this.titleStyle(),
       avoidLayoutSafeArea: false,
       enableComponentSafeArea: false
