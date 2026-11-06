@@ -54,4 +54,44 @@ export class PostContext {
     const article = record(record(root['data'])['post']);
     return root['retcode'] === 0 && idOf(record(article['post'])['post_id']) === expectedId;
   }
+
+  // getSemPosts 语义层：整个 data.list 报告一遍候选 post_id（诊断证据）
+  static listIds(raw: Object): string {
+    const root = record(raw);
+    const data = record(root['data']);
+    const list = data['list'];
+    if (!Array.isArray(list)) {
+      return '';
+    }
+    const ids: string[] = [];
+    (list as Object[]).forEach((entry: Object) => {
+      const item = record(entry);
+      const post = record(item['post']);
+      const id = idOf(post['post_id']);
+      if (id !== '') {
+        ids.push(id);
+      }
+    });
+    return '[' + ids.join(',') + ']';
+  }
+
+  // 从 data.list 严格按 post_id 精准命中一个元素（不近似首条）
+  // 返回 Record（元素本身），允许调用方组装返回结构。
+  static findDetailInList(raw: Object, expectedId: string): Record<string, Object> | undefined {
+    const root = record(raw);
+    const data = record(root['data']);
+    const list = data['list'];
+    if (!Array.isArray(list)) {
+      return undefined;
+    }
+    const entries = list as Object[];
+    for (let i = 0; i < entries.length; i++) {
+      const item = record(entries[i]);
+      const post = record(item['post']);
+      if (idOf(post['post_id']) === expectedId) {
+        return item;
+      }
+    }
+    return undefined;
+  }
 }
