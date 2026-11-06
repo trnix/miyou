@@ -27,6 +27,35 @@ export class PostApi {
     }
   }
 
+  // 结构摘要不产生对象字面量类型，纯字符串拼装；分层缺哪层报哪层
+  private static structuralSummary(result: Record<string, Object>): string {
+    const rc = result['retcode'];
+    const rcText = typeof rc === 'number' ? rc.toString() : '(缺失)';
+    let out = `retcode=${rcText}`;
+    const data = result['data'];
+    if (data === null) { return out + '; data=null'; }
+    if (data === undefined) { return out + '; data=缺失'; }
+    if (typeof data !== 'object') { return out + `; data类型=${typeof data}`; }
+    if (Array.isArray(data)) { return out + `; data=数组[${(data as Object[]).length}]`; }
+    const dr = data as Record<string, Object>;
+    out += '; data=对象';
+    if (dr['post'] === undefined) { return out + '; data.post=缺失'; }
+    const art = dr['post'];
+    if (art === null) { return out + '; data.post=null'; }
+    if (typeof art !== 'object') { return out + `; data.post=${typeof art}`; }
+    if (Array.isArray(art)) { return out + `; data.post=数组[${(art as Object[]).length}]`; }
+    const ar = art as Record<string, Object>;
+    if (ar['post'] === undefined) { return out + '; post.post=缺失'; }
+    const inner = ar['post'];
+    if (inner === null) { return out + '; post.post=null'; }
+    if (typeof inner !== 'object') { return out + `; post.post=${typeof inner}`; }
+    if (Array.isArray(inner)) { return out + `; post.post=数组[${(inner as Object[]).length}]`; }
+    const ir = inner as Record<string, Object>;
+    const pid = ir['post_id'];
+    if (pid === undefined) { return out + '; post_id=缺失'; }
+    return out + `; post_id=${typeof pid}:${String(pid)}`;
+  }
+
   private static async doProbe(url: string): Promise<PostProbe> {
     try {
       const raw = await MysHttp.request(url, PostApi.headers());
@@ -88,14 +117,15 @@ export class PostApi {
     const result = JSON.parse(fallback.body) as Record<string, Object>;
     const resultCode = result['retcode'];
     PostApi.trace(postId, `getPostFull retcode=-1 → getSemPosts(gids=${gid}) HTTP 200, retcode=${typeof resultCode === 'number' ? resultCode : '缺失'}`);
-    if (resultCode === 0) {
-      if (!PostContext.matchesDetail(result, postId)) {
-        PostApi.trace(postId, 'getSemPosts 返回结构或帖子ID不匹配，拒绝展示错误帖子');
-        throw new Error('getSemPosts 返回结构或帖子ID不匹配');
-      }
+    if (resultCode === 0 && PostContext.matchesDetail(result, postId)) {
       PostContext.rememberDetail(result);
+      return result;
     }
-    return result;
+    if (resultCode === 0) {
+      // 同帖trace只保存最后一条：摘要与回退说明必须合并，避免后写入覆盖关键证据。
+      PostApi.trace(postId, `getSemPosts(gids=${gid}) HTTP 200 返回结构或帖子ID不匹配：${PostApi.structuralSummary(result)}；回落原版本提示`);
+    }
+    return resultCode === 0 ? original : result;
   }
 
   static async fetchReplies(postId: string, lastId: string, size: number): Promise<Object> {
