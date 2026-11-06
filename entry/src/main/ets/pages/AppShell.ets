@@ -1,4 +1,4 @@
-import { HdsNavigation, HdsNavigationTitleMode, HdsTabs, HdsTabsController, BottomTabBarStyle,
+import { HdsNavigation, HdsNavigationTitleMode, HdsTabs, HdsTabsController,
   ScrollEffectType, hdsMaterial, HdsTabsFloatingStyle, TitleBarStyleOptions } from '@kit.UIDesignKit';
 import { SymbolGlyphModifier } from '@kit.ArkUI';
 import { GlassTheme } from '../view/GlassTheme';
@@ -13,6 +13,7 @@ interface TabItem {
 }
 
 // 底栏图标：HDS 标准双色策略（未选=bottom_tab_icon_off 系，选中=activated 系）。
+// BottomTabBarStyle 是 ArkUI 全局类型，无需导入（demo 与全站 HdsTabs 工程一致）。
 const TAB_ITEMS: TabItem[] = [
   {
     label: '首页',
