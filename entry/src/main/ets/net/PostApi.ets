@@ -27,33 +27,64 @@ export class PostApi {
     }
   }
 
-  // 结构摘要不产生对象字面量类型，纯字符串拼装；分层缺哪层报哪层
+  // 只输出形态和白名单标识，禁止将会话、个人资料或正文字符串复制到结构日志。
+  private static shapeNode(value: Object | undefined, path: string, key: string, depth: number, lines: string[]): void {
+    if (lines.length >= 120) { return; }
+    if (/cookie|token|authorization|password|secret|credential|device|fingerprint|email|phone|mobile|uid|nickname|introduce|avatar|^user$/i.test(key)) {
+      lines.push(path + ' = [已省略]');
+      return;
+    }
+    if (value === undefined) { lines.push(path + ' = undefined'); return; }
+    if (value === null) { lines.push(path + ' = null'); return; }
+    if (typeof value === 'string') {
+      if (key === 'post_id' && /^\d+$/.test(value)) {
+        lines.push(path + ' = string:' + value);
+      } else {
+        const trimmed = value.trim();
+        const hint = trimmed.startsWith('[') ? ', starts=[' : (trimmed.startsWith('{') ? ', starts={' : '');
+        lines.push(path + ` = string(length=${value.length}${hint})`);
+      }
+      return;
+    }
+    if (typeof value === 'number') {
+      const show = key === 'retcode' || key === 'game_id' || key === 'gids' || key === 'post_id';
+      lines.push(path + (show ? ' = number:' + value.toString() : ' = number'));
+      return;
+    }
+    if (typeof value === 'boolean') { lines.push(path + ' = boolean'); return; }
+    if (Array.isArray(value)) {
+      const list = value as Object[];
+      lines.push(path + ` = array(length=${list.length})`);
+      if (depth >= 7) { lines.push(path + ' [达到深度上限]'); return; }
+      for (let i = 0; i < Math.min(3, list.length) && lines.length < 120; i++) {
+        PostApi.shapeNode(list[i], path + '[' + i + ']', '', depth + 1, lines);
+      }
+      if (list.length > 3 && lines.length < 120) { lines.push(path + ` [其余${list.length - 3}项未展开]`); }
+      return;
+    }
+    if (typeof value === 'object') {
+      const record = value as Record<string, Object>;
+      const keys: string[] = Object.keys(record);
+      const shown = keys.slice(0, 24);
+      lines.push(path + ` = object(keys=${keys.length}): ` + shown.map((name: string) => name.substring(0, 48)).join(', '));
+      if (depth >= 7) { lines.push(path + ' [达到深度上限]'); return; }
+      for (let i = 0; i < shown.length && lines.length < 120; i++) {
+        const name = shown[i];
+        PostApi.shapeNode(record[name], path + '.' + name.substring(0, 48), name, depth + 1, lines);
+      }
+      if (keys.length > 24 && lines.length < 120) { lines.push(path + ` [其余${keys.length - 24}个键未展开]`); }
+      return;
+    }
+    lines.push(path + ' = ' + typeof value);
+  }
+
   private static structuralSummary(result: Record<string, Object>): string {
-    const rc = result['retcode'];
-    const rcText = typeof rc === 'number' ? rc.toString() : '(缺失)';
-    let out = `retcode=${rcText}`;
-    const data = result['data'];
-    if (data === null) { return out + '; data=null'; }
-    if (data === undefined) { return out + '; data=缺失'; }
-    if (typeof data !== 'object') { return out + `; data类型=${typeof data}`; }
-    if (Array.isArray(data)) { return out + `; data=数组[${(data as Object[]).length}]`; }
-    const dr = data as Record<string, Object>;
-    out += '; data=对象';
-    if (dr['post'] === undefined) { return out + '; data.post=缺失'; }
-    const art = dr['post'];
-    if (art === null) { return out + '; data.post=null'; }
-    if (typeof art !== 'object') { return out + `; data.post=${typeof art}`; }
-    if (Array.isArray(art)) { return out + `; data.post=数组[${(art as Object[]).length}]`; }
-    const ar = art as Record<string, Object>;
-    if (ar['post'] === undefined) { return out + '; post.post=缺失'; }
-    const inner = ar['post'];
-    if (inner === null) { return out + '; post.post=null'; }
-    if (typeof inner !== 'object') { return out + `; post.post=${typeof inner}`; }
-    if (Array.isArray(inner)) { return out + `; post.post=数组[${(inner as Object[]).length}]`; }
-    const ir = inner as Record<string, Object>;
-    const pid = ir['post_id'];
-    if (pid === undefined) { return out + '; post_id=缺失'; }
-    return out + `; post_id=${typeof pid}:${String(pid)}`;
+    const lines: string[] = [];
+    PostApi.shapeNode(result['retcode'], 'retcode', 'retcode', 0, lines);
+    PostApi.shapeNode(result['data'], 'data', 'data', 0, lines);
+    if (lines.length >= 120) { lines.push('[字段树达到120行上限]'); }
+    const report = lines.join('\n');
+    return report.length > 12000 ? report.substring(0, 12000) + '\n[字数上限截断]' : report;
   }
 
   private static async doProbe(url: string): Promise<PostProbe> {
@@ -75,7 +106,6 @@ export class PostApi {
     return probe;
   }
 
-  // 诊断仅限已使用的官方接口或文章页，禁止向任意域发送当前会话。
   static async probeUrl(url: string): Promise<PostProbe> {
     if (!/^https:\/\/www\.miyoushe\.com\/(zzz|ys)\/article\/\d+$/.test(url) &&
       !/^https:\/\/bbs-api\.miyoushe\.com\/painter\/wapi\/getSemPosts\?gids=\d+&post_id=\d+$/.test(url)) {
@@ -100,7 +130,6 @@ export class PostApi {
       PostContext.rememberDetail(original);
       return original;
     }
-    // 仅回退本次观测到的明确业务错误，不对403、鉴权失败或其它错误盲目重试。
     if (rc !== -1 || msg.indexOf('升级') < 0 || (original['data'] !== null && original['data'] !== undefined)) {
       return original;
     }
@@ -122,8 +151,7 @@ export class PostApi {
       return result;
     }
     if (resultCode === 0) {
-      // 同帖trace只保存最后一条：摘要与回退说明必须合并，避免后写入覆盖关键证据。
-      PostApi.trace(postId, `getSemPosts(gids=${gid}) HTTP 200 返回结构或帖子ID不匹配：${PostApi.structuralSummary(result)}；回落原版本提示`);
+      PostApi.trace(postId, `getSemPosts(gids=${gid}) HTTP 200 返回结构或帖子ID不匹配；expected_post_id=${postId}\n${PostApi.structuralSummary(result)}\n回落原版本提示，未放宽ID校验`);
     }
     return resultCode === 0 ? original : result;
   }
