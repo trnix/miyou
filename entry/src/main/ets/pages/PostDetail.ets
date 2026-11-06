@@ -70,24 +70,7 @@ struct PostDetailPage {
     this.imageMenu.open();
   }
 
-  // HTML 页里带帖子数据时只在 post_id / structured_content 附近取而 1500 字窗，避免整页冗长
-  private smartExcerpt(body: string): string {
-    if (body === '') {
-      return '(空响应)'
-    }
-    const markerA = body.indexOf('"post_id"');
-    const markerB = body.indexOf('"structured_content"');
-    let at = 0;
-    if (markerA >= 0) {
-      at = Math.max(0, markerA - 200);
-    } else if (markerB >= 0) {
-      at = Math.max(0, markerB - 200);
-    }
-    const end = Math.min(body.length, at + 1500);
-    return body.substring(at, end) + (end < body.length ? ' …[截断]' : '');
-  }
-
-  // 五组变体：read=1 / 无 read / read=2 + zzz 与 ys 两条网页页 HTML（验证正文是否混在网页页里）
+  // 三组 wapi 变体 + 两组官方 /post/api 变体（与本 App 同一官方客户端身份通道）
   private async runDiag(): Promise<void> {
     if (this.debugLoading) { return; }
     this.debugLoading = true;
@@ -102,19 +85,21 @@ struct PostDetailPage {
     for (let i = 0; i < variants.length; i++) {
       const q = variants[i];
       const probe: PostProbe = await PostApi.probeQuery(q);
-      lines.push(`—— 接口 ${i + 1}: ${q}`);
+      lines.push(`—— wapi ${i + 1}: ${q}`);
       lines.push(`HTTP ${probe.httpCode}`);
       lines.push(probe.bodyExcerpt);
       lines.push('');
     }
-    const paths: string[] = ['zzz', 'ys'];
-    for (let j = 0; j < paths.length; j++) {
-      const p = paths[j];
-      const url = `https://www.miyoushe.com/${p}/article/${this.postId}`;
+    const apiUrls: string[] = [
+      `https://bbs-api.miyoushe.com/post/api/getPostFull?post_id=${this.postId}`,
+      `https://bbs-api.miyoushe.com/post/api/getPostFull?post_id=${this.postId}&read=1`
+    ];
+    for (let j = 0; j < apiUrls.length; j++) {
+      const url = apiUrls[j];
       const probe: PostProbe = await PostApi.probeUrl(url);
-      lines.push(`—— 网页页 ${j + 1}: ${p}/article/`);
+      lines.push(`—— api ${j + 1}: ${url.substring('https://bbs-api.miyoushe.com/'.length)}`);
       lines.push(`HTTP ${probe.httpCode}`);
-      lines.push(this.smartExcerpt(probe.bodyExcerpt));
+      lines.push(probe.bodyExcerpt);
       lines.push('');
     }
     this.debugText = lines.join('\n');
@@ -242,7 +227,7 @@ struct PostDetailPage {
           this.replies = merged;
         } else { this.replies = r.replies; }
         this.replyLoaded = true; this.replyError = '';
-    } else { this.replyError = `评论接口返回 ${r.retcode}（${r.message}）`; }
+      } else { this.replyError = `评论接口返回 ${r.retcode}（${r.message}）`; }
     } catch (e) { this.replyError = '评论加载失败，请检查网络'; }
     finally { this.replyLoading = false; }
   }
@@ -416,7 +401,7 @@ struct PostDetailPage {
             Column({ space: 14 }) {
               Text(this.errorText).fontSize(14).fontColor('#667085').width('100%')
               Button('重试').onClick(() => this.load())
-              Button(this.debugLoading ? '请求中…' : '请求诊断（定位新版格式）')
+              Button(this.debugLoading ? '请求中…' : '请求诊断（api 变体）')
                 .fontSize(13)
                 .enabled(!this.debugLoading)
                 .onClick(() => this.runDiag())

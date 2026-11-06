@@ -50,9 +50,11 @@ export class PostApi {
     return probe;
   }
 
+  // 只允许本次排查或使用过的官方读取接口，防止任意域请求携带当前会话。
   static async probeUrl(url: string): Promise<PostProbe> {
-    if (!/^https:\/\/www\.miyoushe\.com\/(zzz|ys)\/article\/\d+$/.test(url) &&
-      !/^https:\/\/bbs-api\.miyoushe\.com\/painter\/wapi\/getSemPosts\?gids=\d+&post_id=\d+$/.test(url)) {
+    const ok = /^https:\/\/bbs-api\.miyoushe\.com\/(post\/wapi\/getPostFull|post\/api\/getPostFull|painter\/wapi\/getSemPosts)\?[^ \t]+$/.test(url) &&
+      /([?&]post_id=\d+)(?:&|$)/.test(url);
+    if (!ok) {
       return { url: '(不允许的诊断地址)', httpCode: 0, bodyExcerpt: '诊断地址必须在官方白名单内' };
     }
     return PostApi.doProbe(url);
@@ -91,27 +93,18 @@ export class PostApi {
     const result = JSON.parse(fallback.body) as Record<string, Object>;
     const resultCode = result['retcode'];
     PostApi.trace(postId, `getPostFull retcode=-1 → getSemPosts(gids=${gid}) HTTP 200, retcode=${typeof resultCode === 'number' ? resultCode : '缺失'}`);
-    if (resultCode !== 0) {
-      return result;
-    }
-    // 1) 直接详情形态（getPostFull 同款）
+    if (resultCode !== 0) { return result; }
     if (PostContext.matchesDetail(result, postId)) {
       PostContext.rememberDetail(result);
       return result;
     }
-    // 2) 语义列表形态（getSemPosts 已证实）：从 data.list 精准匹配目标条目，不接近首条
     const entry = PostContext.findDetailInList(result, postId);
     if (entry !== undefined) {
-      const wrap: DetailWrap = {
-        retcode: 0,
-        message: 'OK',
-        data: { post: entry }
-      };
+      const wrap: DetailWrap = { retcode: 0, message: 'OK', data: { post: entry } };
       PostContext.rememberDetail(wrap as Object);
       PostApi.trace(postId, `getSemPosts(gids=${gid}) list语义精准命中目标后包装为详情`);
       return wrap;
     }
-    // 3) 完全不在候选：停用 fallback 不再近似首条
     PostApi.trace(postId, `getSemPosts(gids=${gid}) 返回语义列表 ${PostContext.listIds(result)}，目标 ${postId} 不在候选，fallback 停用`);
     return original;
   }
