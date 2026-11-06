@@ -118,9 +118,9 @@ struct AppShell {
     .titleBar({
       content: { title: { mainTitle: this.tabTitles[this.currentTab] } },
       style: this.titleStyle(),
-      // 避让只走组件级安全区：true=标题栏声明安全区，内容与标题栏双双避开系统状态栏；
-      // demo 的 false 写法会让一切从屏幕 y=0 起排并叠进状态栏（真机实证）。
-      avoidLayoutSafeArea: false,
+      // 两个开关分工：avoidLayoutSafeArea=标题栏自身避让系统状态栏（必须为 true，否则标题大字叠进状态栏）；
+      // enableComponentSafeArea=内容区避让标题栏（必须为 true，否则内容从屏幕 y=0 起排）。两者不是同一条路径，都要 true。
+      avoidLayoutSafeArea: true,
       enableComponentSafeArea: true
     })
     .bindToScrollable([this.scHome, this.scSearch, this.scMine])
