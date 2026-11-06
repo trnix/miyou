@@ -30,8 +30,10 @@ export struct AdaptiveImage {
 
   build() {
     if (this.maxHeight > 0) {
+      // draggable(false)：系统默认 true，长按会先起拖拽预览层盖住长按菜单
       Image(this.imageUrl).width('100%').constraintSize({ maxHeight: this.maxHeight }).aspectRatio(this.ratio)
         .objectFit(ImageFit.Contain).backgroundColor('#F2F4F7').borderRadius(this.radius)
+        .draggable(false)
         .animation({ duration: 180, curve: Curve.EaseOut })
         .onComplete((event?: ImageCompleteInfo) => this.adjust(event))
         .onAreaChange((old: Area, area: Area) => this.recordArea(old, area))
@@ -42,6 +44,7 @@ export struct AdaptiveImage {
     } else {
       Image(this.imageUrl).width('100%').aspectRatio(this.ratio)
         .objectFit(ImageFit.Cover).backgroundColor('#F2F4F7').borderRadius(this.radius)
+        .draggable(false)
         .animation({ duration: 180, curve: Curve.EaseOut })
         .onComplete((event?: ImageCompleteInfo) => this.adjust(event))
         .onAreaChange((old: Area, area: Area) => this.recordArea(old, area))

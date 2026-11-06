@@ -338,8 +338,10 @@ struct PostDetailPage {
   PreviewLayer() {
     Stack() {
       Column().width('100%').height('100%').backgroundColor('#000000').opacity(this.scrimAlpha).onClick(() => this.closePreview())
+      // draggable(false)：预览图同样挂长按菜单，不允许系统拖拽预览层遮挡
       Image(this.previewUrl).position({ x: this.boxX, y: this.boxY }).width(this.boxW).height(this.boxH)
         .objectFit(ImageFit.Cover).borderRadius(this.boxRadius).clip(true).backgroundColor('#F2F4F7')
+        .draggable(false)
         .opacity(this.flyingAlpha).scale({ x: this.previewScale, y: this.previewScale, z: 1 })
         .onComplete((event?: PreviewImageInfo) => {
           if (event !== undefined && event.width > 0 && event.height > 0 && this.flyingAlpha < 1) {

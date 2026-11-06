@@ -12,12 +12,13 @@
 - 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
 - Tab 框架（AppShell）：系统 `Tabs` + 3 个 `TabContent`，`.barHeight(0)` 隐藏系统页签条，自定义悬浮药丸底栏保留；TabContent 天然懒挂载 + 常驻保活；切换动画只由 `TabsController.changeIndex` 驱动；`index` 参数**不绑定 @State**——它退化为纯点击高亮状态，点击时立刻写入（高光瞬移），页面滑动由控制器独立播放；`onChange` 同步横滑结果
 - 频道栏样式唯一基准（首页/社区一致）：文字 + 底部 18×3 指示条，选中用频道专属色（GameInfo.color）、fontSize 17 Bold，未选 15 Normal #667085；项 padding 左右 10 上 8、flexShrink(0)，栏高 46，横滑 Scroll + 右侧「频道」胶囊（32×64）。文案取 GameCatalog.short，崩坏学园2 显示全称
+- gid→游戏 映射以 `docs/gids-mapping.md` 为准（探测器实测 1..14）；net/GameCatalog.ets 与其一一对应，新增频道先复核映射
 - 图片体验：正文/评论图统一用 `view/AdaptiveImage.ets`（16:9 预估占位 → onComplete 识别极端比例智能处理：超细 banner 徽标化、横幅真实比例全显不横裁、表情包小图限高全显、常规/长图按真实比例；每张缩略图用 onAreaChange 常驻记录全局 rect + 圆角 + 图片真实宽高伴点击上报）；头像与信息流图片定高 + `#F2F4F7` 占位底色
 - 全局滚动条隐藏：Scroll/List 统一 `.scrollBar(BarState.Off)`
 - 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
 - **文档同代**：版本号、Endpoints.USER_AGENT、README、本文件功能矩阵必须与代码同代。README 曾停留在 0.6.0、UA 曾停留在 0.5.0 而代码已到 0.7.0——功能定稿/规则更新时同步更新说明文档，纳入每次交付清单
 
-## ArkTS 踩坑清单（八条铁律）
+## ArkTS 踩坑清单（九条铁律）
 
 1. 禁 any/unknown（arkts-no-any-unknown）。JSON 解析一律 `(raw as Record<string, Object>)['key']` 递归取值，配合 asStr/asNum/asBool 防御性提取，单条失败不丢整页
 2. 索引访问类型受限：断言后取键必须写成 `(x as Record<string, Object>)['key']`，不能链式简写
@@ -27,6 +28,7 @@
 6. 类型声明必须具名：禁内联对象字面量类型（arkts-no-obj-literals-as-types），回调参数结构也要先声明 interface
 7. Tabs 的 `index` 属性绑定 @State 且直接写该状态会**瞬跳无动画**；要么只调 `TabsController.changeIndex` 接受高亮延迟，要么 **index 不绑定状态**、状态只控制高亮（本仓采用后者：点击高光即时 + 控制器播动画）
 8. 诊断/日志 trace 必须追加式累积（' | ' 连接 + 长度截断保护），覆盖式只留最后一跳会丢中间证据——b146 验证期曾因此把「新代码已生效但仍失败」误判为「装错包」，白走一轮卸载重装
+9. Image 默认 `draggable(true)`：长按时系统先起拖拽预览（膨胀鼓动层），浮于 CustomDialog 之上，松手才放行菜单——凡挂 LongPressGesture 的 Image 一律 `.draggable(false)`（AdaptiveImage 两分支、详情全屏预览图均已修）
 
 ## 动画规范（全开发流程固定）
 
@@ -54,7 +56,7 @@
 ## 已验证接口表
 
 ### bbs 读接口（基础 web 头组即可，登录 Cookie 为可选增强；详情新版帖例外见下行）
-- 信息流：`GET bbs-api-static.miyoushe.com/apihub/wapi/webHome?gids={2|6|8}&page=&page_size=`（原神 2 / 星穹铁道 6 / 绝区零 8；崩坏 3 gid 实测错位，已下架）
+- 信息流：`GET bbs-api-static.miyoushe.com/apihub/wapi/webHome?gids=&page=&page_size=`（gid→游戏 1/2/3/4/5/6/8/9/10 全部探测器实测，7 与 11+ 为空，映射详见 `docs/gids-mapping.md`）
 - 帖子详情：`GET bbs-api.miyoushe.com/post/wapi/getPostFull?gids={真实game_id}&post_id=&read=1`（**新版格式帖需网页客户端身份**：x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，缺了服务端静默降级为「请升级版本查看」；gids 取自 PostContext 真实记录不猜频道；正文五形态：NORMAL delta / PIC / UGC / HTML / JSON 字符串，PostModels 全归一为 text/image 块）
 - 评论：`GET bbs-api.miyoushe.com/post/api/getPostReplies?post_id=&size=&is_hot=true&last_id=`（last_id 游标分页）
 - 楼中楼：`GET bbs-api.miyoushe.com/post/wapi/getSubReplies?post_id=&floor_id=&gids=&size=&last_id=`（floor_id 取主评论 reply_id 数值部分，已实测）
@@ -68,14 +70,13 @@
 
 ### 已知受限（客户端无解，勿再试）
 - `post/wapi/userPost`：任何 uid 都返回 1001 权限不足（服务端风控），他人主页帖子区与 MineTab 跳自己主页均因此受限
-- 崩坏 3：gids=3 实测返回崩坏学园 2 内容，正确值不可考，已下架
 - R4 游戏战绩（game_record 域）：未重测维持下架。DsSign.ets 已随网页身份修复回归（DS1/LK2 + DS2/x6 对照实现），但 game_record 完整 DS2 链路未验证
 
 ## 功能矩阵（当前真实状态）
 
 | 功能 | 状态 |
 |---|---|
-| 首页推荐流 | ✅ 三游戏频道切换 + 下拉刷新 + 上拉分页 |
+| 首页推荐流 | ✅ 九游戏频道切换（gid 映射探测器实测）+ 下拉刷新 + 上拉分页 |
 | 社区搜索 | ✅ 按游戏 + 最热/最新 + 游标分页；频道栏与首页同款（文字+指示条、频道专属色） |
 | 帖子详情 | ✅ 标题/话题/结构化正文/图片点击全屏预览并双指缩放；新版格式帖已解锁（网页身份 + DS1，b147 真机验证） |
 | 评论区 | ✅ 热评分页 + 楼中楼可点展开（每楼层独立状态，带动画） |
@@ -83,7 +84,7 @@
 | 我的 | ✅ 登录身份卡（头像/昵称/UID/简介/四项数据，@Watch 随登录态刷新）+ 沉浸光感开关 + 动态版本号 |
 | 登录 | ✅ 官方网页登录 + 扫码登录，Cookie 清洗持久化 |
 | Tab 框架 | ✅ 系统 Tabs 滑动动画 + 横滑手势 + 保活不重载 + 点击高光即时同步 |
-| 图片体验 | ✅ AdaptiveImage 智能比例 + 预览 V5.1 单节点一镜到底（已实测双向无闪烁）+ 捏合缩放/双击还原 + 缩放关闭先还原 + 侧滑只关预览；预览页无提示文案 |
+| 图片体验 | ✅ AdaptiveImage 智能比例 + 预览 V5.1 单节点一镜到底（已实测双向无闪烁）+ 捏合缩放/双击还原 + 缩放关闭先还原 + 侧滑只关预览；长按菜单即时弹出无遮挡（draggable(false)） |
 | 动画规范 | ✅ 全站统一 Curve.EaseOut；预览 = 单节点适变（除解码门控外飞行图零透明度动画）；楼中楼 transition + animateTo |
 | 消息 | ❌ 入口已移除（官方接口未接入） |
 | 版区频道页 | ❌ R7 取消（降级后与首页重叠，ForumHome.ets 已删） |
@@ -93,6 +94,6 @@
 
 v0.7.0 收束：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；预览动画五轮迭代定稿 V5.1 单节点适变（打开/关闭闪烁均已实测消除）；动画规范统一；MineTab 身份卡；README/UA/文档同代修正。
 
-v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。社区频道栏样式与首页统一（文字+指示条、频道专属色、46 高）；崩坏学园2 频道显示全称（GameCatalog.short 一处改，三处生效）。
+v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。社区频道栏样式与首页统一（文字+指示条、频道专属色、46 高）；崩坏学园2 频道显示全称（GameCatalog.short 一处改，三处生效）。gids→游戏 全映射探测器实测归档（docs/gids-mapping.md，修正「崩坏3 错位」旧误记：崩坏3=1、崩坏学园2=3）；修复帖子图片长按被系统拖拽预览盖住菜单（铁律 9：挂长按手势的 Image 一律 draggable(false)）。
 
 原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。
