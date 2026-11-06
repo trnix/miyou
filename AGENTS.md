@@ -10,7 +10,7 @@
 - 网络层唯一出口 `net/MysHttp.ets`：request(GET) / postJson(POST)，返回 `{ httpCode, body, headerText }`；headerText 可能含凭据，界面不得直接展示
 - 端点与版本号集中在 `net/Endpoints.ets`；各 Api 类自管请求头，登录后经 `Session.cookie()` 附带 Cookie
 - 路由：`router.pushUrl` + JSON params；**新页面必须在 `main_pages.json` 注册**
-- Tab 框架（AppShell）：`HdsNavigation`（titleBar MINI、隐藏返回键）包 `HdsTabs`（`barPosition(End)` + `barOverlap(true)` 悬浮底栏，`BottomTabBarStyle` 系统 SymbolGlyph 双色图标，**ArkUI 全局类型不可从 UIDesignKit 导入**）；每个 Tab 持一个 `Scroller` 经 `bindToScrollable` 交给 HDS 感知滚动；标题栏页名随 `HdsTabs.onChange` 同步（currentTab 只做显示，不绑定 index）；顶栏/底栏材质走 `systemMaterialEffect`（见下条）
+- Tab 框架（AppShell）：`HdsNavigation`（titleBar MINI、隐藏返回键、`enableComponentSafeArea: true`）包 `HdsTabs`（`barPosition(End)` + `barOverlap(true)` 悬浮底栏，`BottomTabBarStyle` 系统 SymbolGlyph 双色图标，**ArkUI 全局类型不可从 UIDesignKit 导入**）；每个 Tab 持一个 `Scroller` 经 `bindToScrollable` 交给 HDS 感知滚动；标题栏页名随 `HdsTabs.onChange` 同步（currentTab 只做显示，不绑定 index）；顶栏/底栏材质走 `systemMaterialEffect`（见下条）
 - 沉浸光感材质：HDS 线（AppShell）= titleBar `MaterialType.IMMERSIVE` + 底栏 `MaterialType.ADAPTIVE`，等级 `EXQUISITE` 优先、设备不支持 IMMERSIVE 时降级 `SMOOTH`（`GlassTheme.hdsLevel()`），开关=是否下发 `systemMaterialEffect`；uiMaterial 线（详情页顶栏、频道栏等普通组件）= `GlassTheme.material()` 保持 THICK；能力检测查 `getSystemMaterialTypes()` 的 **IMMERSIVE 成员**（非空列表 ≠ 支持沉浸材质）
 - 频道栏样式唯一基准（首页/社区一致）：文字 + 底部 18×3 指示条，选中用频道专属色（GameInfo.color）、fontSize 17 Bold，未选 15 Normal #667085；项 padding 左右 10 上 8、flexShrink(0)，栏高 46，横滑 Scroll + 右侧「频道」胶囊（32×64）。文案取 GameCatalog.short，崩坏学园2 显示全称
 - gid→游戏 映射以 `docs/gids-mapping.md` 为准（探测器实测 1..14）；net/GameCatalog.ets 与其一一对应，新增频道先复核映射
@@ -19,7 +19,7 @@
 - 版本号纪律：versionName 只写 x.y.z 三段（不加 -b 后缀）；UI 展示版本经 `bundleManager.getBundleInfoForSelf` 动态读取（MineTab），改版本只需动 `AppScope/app.json5`
 - **文档同代**：版本号、Endpoints.USER_AGENT、README、本文件功能矩阵必须与代码同代。README 曾停留在 0.6.0、UA 曾停留在 0.5.0 而代码已到 0.7.0——功能定稿/规则更新时同步更新说明文档，纳入每次交付清单
 
-## ArkTS 踩坑清单（九条铁律）
+## ArkTS 踩坑清单（十条铁律）
 
 1. 禁 any/unknown（arkts-no-any-unknown）。JSON 解析一律 `(raw as Record<string, Object>)['key']` 递归取值，配合 asStr/asNum/asBool 防御性提取，单条失败不丢整页
 2. 索引访问类型受限：断言后取键必须写成 `(x as Record<string, Object>)['key']`，不能链式简写
@@ -30,6 +30,7 @@
 7. （系统 Tabs 旧规则，AppShell 已迁移 HdsTabs，留存备用）Tabs 的 `index` 属性绑定 @State 且直接写该状态会**瞬跳无动画**；要么只调 `TabsController.changeIndex` 接受高亮延迟，要么 index 不绑定状态、状态只控制高亮
 8. 诊断/日志 trace 必须追加式累积（' | ' 连接 + 长度截断保护），覆盖式只留最后一跳会丢中间证据——b146 验证期曾因此把「新代码已生效但仍失败」误判为「装错包」，白走一轮卸载重装
 9. Image 默认 `draggable(true)`：长按时系统先起拖拽预览（膨胀鼓动层），浮于 CustomDialog 之上，松手才放行菜单——凡挂 LongPressGesture 的 Image 一律 `.draggable(false)`（AdaptiveImage 两分支、详情全屏预览图均已修）
+10. HdsNavigation 的 titleBar 必须 `enableComponentSafeArea: true`：false 时标题栏不声明组件级安全区，全部内容从屏幕 y=0 起排，与系统状态栏、标题栏双重重叠（官方 demo 的 false 写法真机翻车实证）；`avoidLayoutSafeArea` 保持 false，避让只走组件级安全区一条路径，不双重避让
 
 ## 动画规范（全开发流程固定）
 
@@ -84,7 +85,7 @@
 | 用户主页 | ✅ 资料卡 + 他人帖子列表（自己帖子受 1001 限制） |
 | 我的 | ✅ 登录身份卡（头像/昵称/UID/简介/四项数据，@Watch 随登录态刷新）+ 沉浸光感开关 + 动态版本号 |
 | 登录 | ✅ 官方网页登录 + 扫码登录，Cookie 清洗持久化 |
-| Tab 框架 | ✅ HdsNavigation + HdsTabs：MINI 标题栏（IMMERSIVE 材质，页名随 Tab 同步）+ 悬浮底栏（ADAPTIVE 材质，EXQUISITE/SMOOTH 降级），Scroller 绑定滚动感知 |
+| Tab 框架 | ✅ HdsNavigation + HdsTabs：MINI 标题栏（IMMERSIVE 材质，页名随 Tab 同步，enableComponentSafeArea 避让状态栏）+ 悬浮底栏（ADAPTIVE 材质，EXQUISITE/SMOOTH 降级），Scroller 绑定滚动感知 |
 | 图片体验 | ✅ AdaptiveImage 智能比例 + 预览 V5.1 单节点一镜到底（已实测双向无闪烁）+ 捏合缩放/双击还原 + 缩放关闭先还原 + 侧滑只关预览；长按菜单即时弹出无遮挡（draggable(false)） |
 | 动画规范 | ✅ 全站统一 Curve.EaseOut；预览 = 单节点适变（除解码门控外飞行图零透明度动画）；楼中楼 transition + animateTo |
 | 消息 | ❌ 入口已移除（官方接口未接入） |
@@ -95,6 +96,6 @@
 
 v0.7.0 收束：R6 楼中楼；性能三件套；系统 Tabs 动画与保活；AdaptiveImage 智能比例；预览动画五轮迭代定稿 V5.1 单节点适变（打开/关闭闪烁均已实测消除）；动画规范统一；MineTab 身份卡；README/UA/文档同代修正。
 
-v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。社区频道栏样式与首页统一（文字+指示条、频道专属色、46 高）；崩坏学园2 频道显示全称（GameCatalog.short 一处改，三处生效）。gids→游戏 全映射探测器实测归档（docs/gids-mapping.md，修正「崩坏3 错位」旧误记：崩坏3=1、崩坏学园2=3）；修复帖子图片长按被系统拖拽预览盖住菜单（铁律 9：挂长按手势的 Image 一律 draggable(false)）。AppShell 迁移 HDS：HdsNavigation 标题栏（IMMERSIVE，页名随 onChange 同步）+ HdsTabs 悬浮底栏（ADAPTIVE），EXQUISITE 优先 SMOOTH 降级，自绘顶栏与药丸底栏退役；BottomTabBarStyle 为 ArkUI 全局类型，误从 UIDesignKit 导入会毒化整个 kit 导入（CI 实证）。
+v0.8.0：新版格式帖解锁——F12 实捕对齐网页客户端身份（x-rpc 四元组 2.102.0/4/device_id/device_fp + 逐请求 DS1/LK2 签名，新增 net/DsSign.ets）；详情诊断升级为四变体头组对照；trace 改追加式（铁律 8）；getSemPosts 降级为精准 ID 命中的兜底安全网。社区频道栏样式与首页统一（文字+指示条、频道专属色、46 高）；崩坏学园2 频道显示全称（GameCatalog.short 一处改，三处生效）。gids→游戏 全映射探测器实测归档（docs/gids-mapping.md，修正「崩坏3 错位」旧误记：崩坏3=1、崩坏学园2=3）；修复帖子图片长按被系统拖拽预览盖住菜单（铁律 9：挂长按手势的 Image 一律 draggable(false)）。AppShell 迁移 HDS：HdsNavigation 标题栏（IMMERSIVE，页名随 onChange 同步）+ HdsTabs 悬浮底栏（ADAPTIVE），EXQUISITE 优先 SMOOTH 降级，自绘顶栏与药丸底栏退役；BottomTabBarStyle 为 ArkUI 全局类型，误从 UIDesignKit 导入会毒化整个 kit 导入（CI 实证）；titleBar 的 enableComponentSafeArea 必须为 true，否则内容与标题栏叠进系统状态栏（铁律 10）。
 
 原则重申：读接口、读源码、读真实文件后再动手；不写推测的 API 形态；功能降级与重叠宁可删除不留壳。

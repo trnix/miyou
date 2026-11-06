@@ -118,8 +118,10 @@ struct AppShell {
     .titleBar({
       content: { title: { mainTitle: this.tabTitles[this.currentTab] } },
       style: this.titleStyle(),
+      // 避让只走组件级安全区：true=标题栏声明安全区，内容与标题栏双双避开系统状态栏；
+      // demo 的 false 写法会让一切从屏幕 y=0 起排并叠进状态栏（真机实证）。
       avoidLayoutSafeArea: false,
-      enableComponentSafeArea: false
+      enableComponentSafeArea: true
     })
     .bindToScrollable([this.scHome, this.scSearch, this.scMine])
     .hideBackButton(true)
