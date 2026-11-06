@@ -90,7 +90,7 @@ export struct SearchTab {
           .onChange((v: string) => { this.keyword = v; }).onSubmit(() => this.run(false))
         Button('搜索').onClick(() => this.run(false))
       }.width('100%')
-      // 频道栏与首页同款悬浮圆角条：文字 + 指示条，选中频道专属色，46 高，12 轻度圆角
+      // 频道栏与首页同款悬浮圆角条：外边距继承页面 16 padding，与搜索框左缘对齐（不叠加 margin）
       Row({ space: 6 }) {
         Scroll() {
           Row({ space: 4 }) {
@@ -111,7 +111,6 @@ export struct SearchTab {
           .backgroundColor('#1570EF').fontColor('#FFFFFF')
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'search' } }))
       }.height(46).padding({ left: 4 })
-        .margin({ left: 12, right: 12 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
         .systemMaterial(GlassTheme.material(this.glassLevel))
         .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
