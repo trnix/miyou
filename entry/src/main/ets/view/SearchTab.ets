@@ -1,11 +1,13 @@
 import { router } from '@kit.ArkUI';
 import { SearchApi, SearchPost } from '../net/SearchApi';
+import { GlassTheme } from './GlassTheme';
 import { GameInfo, gameByGids, defaultOrder, cleanOrder } from '../net/GameCatalog';
 
 @Component
 export struct SearchTab {
   scroller: Scroller = new Scroller();
   @StorageLink('safeBottomPx') safeBottomPx: number = 0;
+  @StorageLink('glassLevel') glassLevel: number = 3;
   @StorageLink('searchChannelOrder') @Watch('onChannelsChanged') searchOrder: number[] = [];
   @State keyword: string = '';
   @State currentGid: number = 2;
@@ -88,7 +90,7 @@ export struct SearchTab {
           .onChange((v: string) => { this.keyword = v; }).onSubmit(() => this.run(false))
         Button('搜索').onClick(() => this.run(false))
       }.width('100%')
-      // 频道栏与首页同款：文字 + 底部指示条，选中频道专属色，46 高
+      // 频道栏与首页同款悬浮圆角条：文字 + 指示条，选中频道专属色，46 高，12 轻度圆角
       Row({ space: 6 }) {
         Scroll() {
           Row({ space: 4 }) {
@@ -108,7 +110,12 @@ export struct SearchTab {
         Button('频道', { type: ButtonType.Capsule }).fontSize(13).width(64).height(32)
           .backgroundColor('#1570EF').fontColor('#FFFFFF')
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'search' } }))
-      }.width('100%').height(46).padding({ left: 4 })
+      }.height(46).padding({ left: 4 })
+        .margin({ left: 12, right: 12 })
+        .backgroundColor(GlassTheme.barColor(this.glassLevel))
+        .systemMaterial(GlassTheme.material(this.glassLevel))
+        .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
+        .borderRadius(12).clip(true)
       // 最热 / 最新：居中胶囊，更大字号与点击区，两枚拉开间距
       Row({ space: 28 }) {
         Text('最热')
@@ -156,6 +163,8 @@ export struct SearchTab {
           }.width('100%').padding({ top: 16, bottom: 110 + this.getUIContext().px2vp(this.safeBottomPx) })
         }
       }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
+        // 穿栏配方：让内容滚进标题栏背后
+        .clip(false).cachedCount(2, true)
     }.width('100%').height('100%').padding({ left: 16, right: 16, top: 12 })
   }
 }

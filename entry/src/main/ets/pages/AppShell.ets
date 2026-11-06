@@ -62,10 +62,10 @@ struct AppShell {
   private scSearch: Scroller = new Scroller();
   private scMine: Scroller = new Scroller();
 
-  // 顶栏材质：开=IMMERSIVE + EXQUISITE/SMOOTH；关=不下发材质参数
+  // 顶栏材质：开=IMMERSIVE + EXQUISITE/SMOOTH，滚动模糊从透明渐变（与底栏磨砂同一语言）；关=不下发材质参数
   private titleStyle(): TitleBarStyleOptions {
     const style: TitleBarStyleOptions = {
-      scrollEffectOpts: { enableScrollEffect: false, scrollEffectType: ScrollEffectType.GRADIENT_BLUR }
+      scrollEffectOpts: { enableScrollEffect: true, scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR }
     };
     if (this.glassLevel > 0) {
       style.systemMaterialEffect = {

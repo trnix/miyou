@@ -224,8 +224,11 @@ export struct HomeTab {
           }.width('100%').height('100%').padding({ left: 12, right: 12 })
             .contentStartOffset(this.topOffset()).contentEndOffset(this.bottomOffset())
             .scrollBar(BarState.Off).onReachEnd(() => this.loadMore())
-        }.width('100%').height('100%').onRefreshing(() => this.reload())
+            // 穿栏配方：让内容滚进标题栏背后，滚动模糊才有内容可采样
+            .clip(false).cachedCount(2, true)
+        }.width('100%').height('100%').onRefreshing(() => this.reload()).clip(false)
       }
+      // 悬浮圆角频道条：与底栏同一悬浮语言，12 轻度圆角，内容穿栏时在其上方
       Row({ space: 6 }) {
         Scroll() {
           Row({ space: 4 }) {
@@ -245,10 +248,12 @@ export struct HomeTab {
         Button('频道', { type: ButtonType.Capsule }).fontSize(13).height(32).width(64)
           .backgroundColor('#1570EF').fontColor('#FFFFFF').margin({ right: 8 })
           .onClick(() => router.pushUrl({ url: 'pages/ChannelManage', params: { target: 'home' } }))
-      }.width('100%').height(this.channelBar).padding({ left: 4 })
+      }.height(this.channelBar).padding({ left: 4 })
+        .margin({ left: 12, right: 12 })
         .backgroundColor(GlassTheme.barColor(this.glassLevel))
         .systemMaterial(GlassTheme.material(this.glassLevel))
-        .border({ width: { bottom: 0.5 }, color: GlassTheme.edgeColor(this.glassLevel) })
+        .border({ width: 0.5, color: GlassTheme.edgeColor(this.glassLevel) })
+        .borderRadius(12).clip(true)
     }.width('100%').height('100%')
   }
 }
